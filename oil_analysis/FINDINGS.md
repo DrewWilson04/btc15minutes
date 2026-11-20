@@ -13,7 +13,8 @@ Markets studied: **KXWTI15M**, **KXBRENT15M**, **KXWTIH** (hourly WTI ladder).
 | Live order books | ~115 snapshots over 30 min, 2 windows each (Nov 20): median best-bid depth on the favourite is WTI 232 and Brent 141 contracts. Median spread is 1¢ (WTI) and 2–3¢ (Brent) |
 
 Fees: all three series are fee type `quadratic` per the API, not `quadratic_with_maker_fees`.
-**Takers pay 0.07·p·(1−p) and resting (maker) orders pay nothing.**
+**Takers pay 0.07·p·(1−p), rounded up to the cent per order. Resting (maker) orders pay nothing.**
+See "Fees, order size and volume" below for how size and reward programs change this.
 
 ## How these markets work
 
@@ -34,6 +35,56 @@ Fees: all three series are fee type `quadratic` per the API, not `quadratic_with
 | Hourly ladder arbitrage (monotonicity) | 2 violations in 523k minute-snapshots |
 | 15m vs hourly arbitrage (same settlement print) | Positive after fees in 0.1–0.2% of snapshots, about 17 windows in 2 months. Not repeatable |
 | Hourly pick-offs against fair value | Unstable: train +1.8¢ (t = 0.4), test +6.0¢ (t = 2.7) at a 10¢ threshold. Realized edge is far below predicted. Spreads are 6–8¢ |
+
+## Fees, order size and volume
+
+**Bigger orders are cheaper per contract, but only through rounding.** The fee is rounded up to the next cent per order, with fills of one order added together first.
+There is no published volume tier, so the exact formula is the floor no matter how much you trade.
+
+| Taker fee, ¢/contract | 3¢ / 97¢ | 5¢ / 95¢ | 10¢ / 90¢ | 25¢ / 75¢ | 50¢ |
+|---|---|---|---|---|---|
+| 1-contract order | 1.00 (4.9× formula) | 1.00 (3.0×) | 1.00 (1.6×) | 2.00 (1.5×) | 2.00 (1.14×) |
+| 10-contract order | 0.30 | 0.40 | 0.70 | 1.40 | 1.80 |
+| 25+ contracts | ≈ formula | ≈ formula | ≈ formula | ≈ formula | ≈ formula |
+| Exact formula (floor) | 0.20 | 0.33 | 0.63 | 1.31 | 1.75 |
+
+The rounding penalty only matters below about 25 contracts per order, and it hurts most at extreme prices.
+
+**What oil takers actually pay** (an order counted as same-timestamp fills): Brent averages 0.93¢ per contract and WTI 0.85¢.
+Orders over 100 contracts carry 51% (Brent) and 73% (WTI) of the volume and pay the exact formula.
+Orders of one contract or less pay about 2.1× the formula, but they are only about 0.1% of volume.
+Takers paid about $169k in fees on Brent and $1.77M on WTI in a month, which is the pool a maker competes for.
+
+**Does a lower fee rescue any taker idea?** Every taker test above already used the floor, the exact formula with no rounding, which is what a high-volume trader pays.
+Re-run at three fee levels (`f2_*`):
+
+| Taker test (out-of-sample half where applicable) | Big orders (floor) | 10-contract orders | **Zero fee** |
+|---|---|---|---|
+| WTI Binance-lag fair value | +0.7¢ (t = 0.3) | +0.5¢ | +2.4¢ (t = 1.7) |
+| Brent Binance-lag fair value | −4.2¢ | −3.9¢ | +1.0¢ (t = 0.6) |
+| Buy the favourite at the ask, WTI / Brent | −0.4 / −0.8¢ | −0.5 / −0.9¢ | +0.8¢ (t = 2.1) / +0.3¢ |
+| Buy the underdog at the ask, WTI / Brent | −3.1 / −4.8¢ | −3.1 / −4.9¢ | **−1.9 / −3.6¢** |
+| WTI: buy YES after a down window | −0.6¢ | −0.6¢ | +1.1¢ (t = 1.2) |
+| Brent follows WTI | −2.6¢ | −2.6¢ | −1.1¢ |
+| Hourly fair-value pick-off | +1.8¢ (t = 1.5) | +1.7¢ | +2.0¢ (t = 1.4) |
+| Ladder / 15m-vs-hourly arbitrage | 2 hours / 17 windows in 2 months | | 38 hours / 61 windows |
+
+Even with no fee at all, nothing is clearly profitable. The best is WTI "buy the favourite" at t = 2.1, which would need a rebate of at least 0.4¢ per contract.
+Underdog buying loses before any fee.
+
+**Volume and liquidity reward programs.** This is where trading volume really pays (`f3_*`). Kalshi's API lists every program. Pools are in centi-cents, so 200,000 = $20.
+
+| Series | Program | Pool | Period | Total |
+|---|---|---|---|---|
+| KXWTI15M | Liquidity (pays resting orders) | $20 / window | Aug 3 to Sep 19 | $67.8k |
+| KXBRENT15M | Liquidity | $50 / window | Oct 21 to 28 (launch week) | $21.5k |
+| KXWTIH | none ever | | | |
+| KXBTC15M / KXETH15M | Volume (pays traded volume) | $10–20 / window | Jan to May 12 | |
+
+* These are launch promotions. Every 15-minute series' program ended by Oct 28, and **none is active or scheduled right now** (checked Nov 20).
+* Liquidity scoring, per Kalshi's help center: score = size × 0.5^(ticks behind the reference price), sampled at random snapshots and capped at a 300-contract target. Payouts are pro-rata. Only quotes at the best price earn much.
+* Brent's reward week, two-sided maker quoting up to 300 per level: trading made only +0.9¢ per contract (≈ +$2.80/window). The reward share would have dominated: $5–25 per window at 10–50% of the pool, ≈ $450–2,250/day. These are scenarios, since others' resting size during that week is unknown.
+* A volume program of the BTC/ETH size ($20/window) is about 2% of the ~$920 per window that WTI takers pay in fees. It would not flip any taker test.
 
 ## The one pattern that repeats: the maker side against underdog buyers
 
@@ -86,15 +137,17 @@ The London-morning skip (03:00–08:59 ET) looked good in-sample on both oils bu
 
 1. Pilot **Brent 15m only**, at small size: ≤ 50 contracts per level and ≤ 300 per window.
 2. Each window, minutes 1–12. The favourite is the side with mid ≥ 0.50. **Rest a buy on the favourite at the current best bid**, which means offering the underdog. Cancel and replace on every best-bid change. Never quote the favourite's offer side.
-3. Hold fills to settlement.
+3. Hold fills to settlement. Maker fills pay no fee at any size, so splitting quotes into small orders costs nothing. If you ever take liquidity, use bigger orders. A 1-contract order pays 1.1–4.9× the formula, a 10-contract order 1.03–1.5×, and 25+ contracts is within about 2% except at 3¢/97¢.
 4. Log every fill and compare it with the `m2`/`m7` numbers. Stop if two weeks of real fills are not positive. One month of tape cannot rule out that this was a November effect.
 5. Leave WTI until a new month of tape shows the edge again (re-run `05` → `m1` → `m2` → `m7`).
+6. Have the bot poll `GET /incentive_programs` for KXBRENT15M / KXWTI15M. When a liquidity program is live, switch to **two-sided** quoting at the target size (300) at the best price, because then the reward pays more than the trading edge. Kalshi has run these on both oil 15m series before (Aug–Sep WTI, Oct 21–28 Brent).
 
 ## Caveats
 
 * Short history: one month for Brent (the series' whole life) and three weeks of WTI tape plus a 10-day holdout.
 * The simulation assumes you can always join the best bid instantly, and that your presence doesn't change other makers or takers.
-* Fee policy can change. Check that the series' `fee_type` is still `quadratic`.
+* Fee policy can change. Check that the series' `fee_type` is still `quadratic`. A switch to `quadratic_with_maker_fees` would cost makers 0.0175·p·(1−p): 0.44¢ per contract at 50¢, and less on longshot fills. That takes roughly 0.2–0.4¢ off the maker edge.
+* Reward scoring and two-sided rules come from Kalshi's help center and CFTC filings, which were not fully readable from here. The amended program was filed effective Oct 28 2026. Read the live rules before relying on reward income.
 * $/day figures are simulations, not a promise.
 * The hourly ladder was not tested as a maker (no tick data pulled). It is thin, about 3M contracts a month against 240M for WTI 15m, and its 6–8 ¢ spreads make taking it a loser.
 * This needs order placement, which the current bot in this repo does not have by design.
@@ -113,4 +166,5 @@ Run everything from this folder (`mkdir data` first). `data/` is not committed: 
 | Build | `07_build_windows.py`, `08_build_hourly_markets.py`, `09_binance_download.sh`, `10_build_15m_panel.py SERIES CLUSDT|BZUSDT`, `11_build_hourly_panel.py` |
 | Taker tests | `a1` calibration and tie rule · `a2` Binance lag (also writes the panel) · `a3` lag strategy out of sample · `a4` streaks and time slots · `a5` WTI vs Brent |
 | Hourly | `h1` calibration · `h2` ladder and 15m-vs-hourly arbitrage · `h3` fair-value pick-off |
+| Fees | `fees.py` · `f1` fee by order size and what takers paid · `f2` taker tests at three fee levels · `f3` incentive-program listing · `f4` Brent reward week |
 | Maker | `m1` maker vs taker tape (writes `*_T.pkl`) · `m2` clustered segments and weekly · `m3` vs Binance move · `m4` causal quote-pull · `m5` queue position · `m6` stale-quote simulation · `m7` touch-tracking simulation `SERIES N Q M0 M1 PMAX [HOURS]` · `m8` daily P&L and drawdown |
