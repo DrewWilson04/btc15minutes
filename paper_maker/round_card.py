@@ -21,7 +21,7 @@ def card(log_dirs):
         cost, qty = defaultdict(float), defaultdict(float)
         for f in fills:
             cost[f["ticker"]] += f["qty"] * f["price"]; qty[f["ticker"]] += f["qty"]
-        name = os.path.basename(os.path.normpath(d)).capitalize()
+        name = {"brent": "Brent", "wti": "WTI"}.get(os.path.basename(os.path.normpath(d)), os.path.basename(os.path.normpath(d)))
         w = wins[-1]; t = w["ticker"].split("-")[1][-4:]
         h = int(t[:2]); ampm = f"{(h - 1) % 12 + 1}:{t[2:]} {'pm' if h >= 12 else 'am'}"
         out.append(f"| **{name}** last round ({ampm}, {w['result'].upper()}) | ${cost[w['ticker']]:,.2f} | {qty[w['ticker']]:,.0f} | "
