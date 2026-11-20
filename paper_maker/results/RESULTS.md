@@ -1,15 +1,15 @@
 # Paper bot results
 
-Updated 2026-11-20 21:16 UTC
+Updated 2026-11-20 21:46 UTC
 
 | | Put in | Contracts | Won / Lost | P&L |
 |---|---|---|---|---|
-| **Brent** last round (4:15 pm, NO) | $100.00 | 150 | 1 / 0 | 🟩 +$50.10 |
-| **Brent** $100 cap only (6 rounds) | $807.84 | 1,265 | 4 / 2 | **+$52.00** |
-| **Brent** all 11 rounds (incl. uncapped) | $2,171.67 | 2,974 | 8 / 3 | **+$209.26** |
-| **WTI** last round (4:15 pm, NO) | $100.00 | 143 | 1 / 0 | 🟩 +$42.72 |
-| **WTI** $100 cap only (6 rounds) | $795.72 | 1,177 | 5 / 1 | **+$176.67** |
-| **WTI** all 11 rounds (incl. uncapped) | $4,671.21 | 5,871 | 9 / 2 | **+$65.04** |
+| **Brent** last round (4:45 pm, NO) | $100.00 | 166 | 1 / 0 | 🟩 +$66.33 |
+| **Brent** $100 cap only (8 rounds) | $1,073.36 | 1,706 | 5 / 3 | **+$111.61** |
+| **Brent** all 13 rounds (incl. uncapped) | $2,437.19 | 3,415 | 9 / 4 | **+$268.87** |
+| **WTI** last round (4:45 pm, NO) | $100.00 | 155 | 1 / 0 | 🟩 +$54.52 |
+| **WTI** $100 cap only (8 rounds) | $995.71 | 1,473 | 7 / 1 | **+$272.53** |
+| **WTI** all 13 rounds (incl. uncapped) | $4,871.21 | 6,167 | 11 / 2 | **+$160.89** |
 
 ```
 
@@ -26,12 +26,15 @@ KXBRENT15M-26NOV201530-30     YES        22    $14.76   0.660    YES    +$7.61
 KXBRENT15M-26NOV201545-45    NO/YES       222   $133.06   0.599    YES   +$83.19
 KXBRENT15M-26NOV201600-00     YES       127   $100.00   0.786    YES   +$27.22
 KXBRENT15M-26NOV201615-15      NO       150   $100.00   0.666     NO   +$50.10
+KXBRENT15M-26NOV201630-30    NO/YES       275   $165.52   0.603     NO    -$6.72
+KXBRENT15M-26NOV201645-45      NO       166   $100.00   0.601     NO   +$66.33
+KXBRENT15M-26NOV201700-00     YES         3     $2.02   0.580   open   pending
 ------------------------------------------------------------------------------
-Money put in (all trades):    $2,171.67   (settled $2,171.67)
-Windows won / lost:           8 / 3
-Total up (winning windows):   +$330.34
-Total down (losing windows):  -$121.08
-Net made:                     +$209.26   (+9.64% of money put in)
+Money put in (all trades):    $2,439.21   (settled $2,437.19)
+Windows won / lost:           9 / 4
+Total up (winning windows):   +$396.67
+Total down (losing windows):  -$127.80
+Net made:                     +$268.87   (+11.03% of money put in)
 
 ===== WTI =====
 window                       side contracts    put in  avg px result       P&L
@@ -46,10 +49,12 @@ KXWTI15M-26NOV201530-30       YES       140   $100.00   0.715    YES   +$39.86
 KXWTI15M-26NOV201545-45      NO/YES       354   $230.00   0.650    YES   -$26.11
 KXWTI15M-26NOV201600-00       YES       127   $100.00   0.790    YES   +$26.51
 KXWTI15M-26NOV201615-15        NO       143   $100.00   0.701     NO   +$42.72
+KXWTI15M-26NOV201630-30        NO       141   $100.00   0.708     NO   +$41.33
+KXWTI15M-26NOV201645-45        NO       155   $100.00   0.647     NO   +$54.52
 ------------------------------------------------------------------------------
-Money put in (all trades):    $4,671.21   (settled $4,671.21)
-Windows won / lost:           9 / 2
-Total up (winning windows):   +$576.35
+Money put in (all trades):    $4,871.21   (settled $4,871.21)
+Windows won / lost:           11 / 2
+Total up (winning windows):   +$672.21
 Total down (losing windows):  -$511.32
-Net made:                     +$65.04   (+1.39% of money put in)
+Net made:                     +$160.89   (+3.30% of money put in)
 ```
