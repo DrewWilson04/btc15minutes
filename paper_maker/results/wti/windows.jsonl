@@ -1,0 +1,5 @@
+{"ticker": "KXWTI15M-26NOV201345-45", "result": "yes", "contracts": 763.75, "pnl": -485.209, "total": -485.21, "day_pnl": -485.21, "ts": "2026-11-20T18:45:32.564627+00:00"}
+{"ticker": "KXWTI15M-26NOV201400-00", "result": "yes", "contracts": 504.6, "pnl": 42.8453, "total": -442.36, "day_pnl": -442.36, "ts": "2026-11-20T19:00:25.306075+00:00"}
+{"ticker": "KXWTI15M-26NOV201415-15", "result": "yes", "contracts": 344.93, "pnl": 25.0281, "total": -417.34, "day_pnl": -417.34, "ts": "2026-11-20T19:15:29.481110+00:00"}
+{"ticker": "KXWTI15M-26NOV201430-30", "result": "yes", "contracts": 131.97, "pnl": 37.4236, "total": -379.91, "day_pnl": -379.91, "ts": "2026-11-20T19:30:46.108110+00:00"}
+{"ticker": "KXWTI15M-26NOV201445-45", "result": "no", "contracts": 2948.32, "pnl": 268.2732, "total": -111.64, "day_pnl": -111.64, "ts": "2026-11-20T19:45:38.993823+00:00"}
