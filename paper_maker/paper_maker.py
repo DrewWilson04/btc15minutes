@@ -91,7 +91,7 @@ class PaperMaker:
             self.market = None; return None
         self.market = ms[0]; self.order = None
         self.win = {"ticker": self.market["ticker"], "open": self.market["open_time"],
-                    "close": self.market["close_time"], "fills": [], "at_risk": 0.0, "side_risk": {"yes": 0.0, "no": 0.0}}
+                    "close": self.market["close_time"], "fills": [], "at_risk": 0.0, "side_risk": {"yes": 0.0, "no": 0.0}, "first_side": None}
         self.trade_cursor = ts(self.market["open_time"])
         print(f"[{now():%H:%M:%S}] new window {self.market['ticker']}", flush=True)
         return self.market
@@ -132,13 +132,17 @@ class PaperMaker:
     def open_risk(self):
         return sum(f["qty"] * f["price"] for w in self.pending for f in w["fills"]) + (self.win["at_risk"] if self.win else 0)
 
+    def side_limit(self, side):
+        first = self.win["first_side"]
+        return self.a.side_cap if first in (None, side) or not self.a.flip_cap else self.a.flip_cap
+
     def allowed(self, side=None):
         self.roll_day()
         if self.a.day_stop and self.day_pnl - (self.open_risk() if self.a.count_open_risk else 0) <= -self.a.day_stop:
             return False
         if self.a.window_cap and self.win["at_risk"] >= self.a.window_cap:
             return False
-        if self.a.side_cap and side and self.win["side_risk"][side] >= self.a.side_cap:
+        if self.a.side_cap and side and self.win["side_risk"][side] >= self.side_limit(side):
             return False
         return True
 
@@ -192,10 +196,11 @@ class PaperMaker:
             if self.a.window_cap:
                 room = min(room, max(0.0, (self.a.window_cap - self.win["at_risk"]) / o["price"]))
             if self.a.side_cap:
-                room = min(room, max(0.0, (self.a.side_cap - self.win["side_risk"][o["side"]]) / o["price"]))
+                room = min(room, max(0.0, (self.side_limit(o["side"]) - self.win["side_risk"][o["side"]]) / o["price"]))
             f = min(qty, room)
             if f <= 0: continue
             o["filled"] += f; self.win["at_risk"] += f * o["price"]; self.win["side_risk"][o["side"]] += f * o["price"]
+            self.win["first_side"] = self.win["first_side"] or o["side"]
             fill = {"ticker": m["ticker"], "side": o["side"], "price": o["price"], "qty": round(f, 2),
                     "minute": int((tt - ts(m["open_time"])).total_seconds() // 60) + 1, "trade_time": t["created_time"]}
             self.win["fills"].append(fill); self.log(self.f_fills, fill)
@@ -204,7 +209,7 @@ class PaperMaker:
 
     def run(self):
         print(f"paper maker on {self.a.series}: minutes 1-{self.a.max_minute}, {self.a.per_level:.0f}/level, "
-              f"window cap {self.a.window_cap or 'off'}, side cap {self.a.side_cap or 'off'}, day stop {self.a.day_stop or 'off'}  "
+              f"window cap {self.a.window_cap or 'off'}, side cap {self.a.side_cap or 'off'} (flip side {self.a.flip_cap or 'same'}), day stop {self.a.day_stop or 'off'}  "
               f"| total so far ${self.total:+.2f}", flush=True)
         last_settle = 0
         while True:
@@ -226,6 +231,7 @@ if __name__ == "__main__":
     p.add_argument("--max-dog", type=float, default=0.5, help="only quote when underdog price < this")
     p.add_argument("--window-cap", type=float, default=0, help="max $ at risk per window (0 = off)")
     p.add_argument("--side-cap", type=float, default=0, help="max $ put in per side (YES / NO) per window (0 = off)")
+    p.add_argument("--flip-cap", type=float, default=0, help="$ cap for the side bought AFTER the first side in a window (0 = same as --side-cap)")
     p.add_argument("--day-stop", type=float, default=0, help="stop for the day at this loss (0 = off)")
     p.add_argument("--count-open-risk", action="store_true", help="count unsettled positions as lost for the day stop")
     p.add_argument("--poll", type=float, default=1.5)
