@@ -1,3 +1,5 @@
 logs/
 *.out
 site/
+.last_pushed
+push.out
