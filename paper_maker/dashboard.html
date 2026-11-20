@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kalshi Paper Maker</title>
+<style>
+:root{--bg:#f7f7f5;--card:#fff;--ink:#1d1d1b;--mute:#6b6b66;--line:#e4e3de;--pos:#1f7a4d;--neg:#b3261e;--accent:#2f5fb3}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--ink:#ecebe6;--mute:#9c9b95;--line:#33322f;--pos:#4fbf86;--neg:#ef6b61;--accent:#7aa7f0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 20px;font-size:13px}
+.bot{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:20px}
+.bot h2{font-size:17px;margin:0 0 12px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.kpi{border:1px solid var(--line);border-radius:8px;padding:10px}
+.kpi .l{color:var(--mute);font-size:12px}.kpi .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+.pos{color:var(--pos)}.neg{color:var(--neg)}
+svg{width:100%;height:180px;display:block}
+.chart-empty{color:var(--mute);font-size:13px;padding:30px 0;text-align:center}
+.tables{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+@media (max-width:720px){.tables{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line)}th{color:var(--mute);font-weight:500}
+td.r,th.r{text-align:right}
+h3{font-size:13px;margin:0 0 6px;color:var(--mute);font-weight:600}
+.note{color:var(--mute);font-size:12px;margin-top:24px}
+</style>
+</head>
+<body>
+<main>
+<h1>Kalshi oil paper maker</h1>
+<p class="sub" id="updated">Loading…</p>
+<div id="bots"></div>
+<p class="note">Simulated trading only: no real orders. Strategy: rest a buy on the favourite at the best bid in minutes 1–12, hold to settlement, 0 maker fee. Fills assume we join the back of the queue.</p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const money=v=>(v<0?"−$":"$")+Math.abs(v).toFixed(2);
+const cls=v=>v>0?"pos":v<0?"neg":"";
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function chart(eq){
+  if(eq.length<2) return '<div class="chart-empty">Equity curve appears after a few settled windows.</div>';
+  const W=900,H=180,P=8, ys=eq.map(e=>e.total), lo=Math.min(0,...ys), hi=Math.max(0,...ys), sp=(hi-lo)||1;
+  const x=i=>P+i*(W-2*P)/(eq.length-1), y=v=>H-P-(v-lo)*(H-2*P)/sp;
+  const pts=eq.map((e,i)=>`${x(i).toFixed(1)},${y(e.total).toFixed(1)}`).join(" ");
+  const last=ys[ys.length-1];
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Cumulative P&L">
+    <line x1="${P}" x2="${W-P}" y1="${y(0)}" y2="${y(0)}" stroke="var(--line)" stroke-width="1"/>
+    <polyline points="${pts}" fill="none" stroke="${last>=0?'var(--pos)':'var(--neg)'}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+function bot(b){
+  const k=(l,v,c="")=>`<div class="kpi"><div class="l">${l}</div><div class="v ${c}">${v}</div></div>`;
+  const days=b.days.slice(-10).reverse().map(d=>`<tr><td>${esc(d.day)}</td><td class="r">${d.windows}</td><td class="r">${d.contracts}</td><td class="r ${cls(d.pnl)}">${money(d.pnl)}</td></tr>`).join("");
+  const wins=b.recent_windows.map(w=>`<tr><td>${esc(w.ticker.split("-").slice(1).join("-"))}</td><td>${esc(w.result)}</td><td class="r">${Math.round(w.contracts)}</td><td class="r ${cls(w.pnl)}">${money(w.pnl)}</td></tr>`).join("");
+  return `<section class="bot"><h2>${esc(b.name.toUpperCase())}</h2>
+   <div class="kpis">${k("Total P&L",money(b.total),cls(b.total))}${k("Windows (W/L)",`${b.windows} (${b.wins}/${b.losses})`)}
+   ${k("Contracts",b.contracts)}${k("¢ / contract",b.cents_per_contract==null?"–":b.cents_per_contract.toFixed(2),cls(b.cents_per_contract||0))}
+   ${k("Max drawdown",money(b.max_drawdown),b.max_drawdown<0?"neg":"")}${k("Awaiting settlement",b.open_windows)}</div>
+   ${chart(b.equity)}
+   <div class="tables"><div><h3>Daily</h3><table><tr><th>Day (UTC)</th><th class="r">Windows</th><th class="r">Contracts</th><th class="r">P&amp;L</th></tr>${days||'<tr><td colspan="4">No settled windows yet</td></tr>'}</table></div>
+   <div><h3>Recent windows</h3><table><tr><th>Window</th><th>Result</th><th class="r">Contracts</th><th class="r">P&amp;L</th></tr>${wins||'<tr><td colspan="4">–</td></tr>'}</table></div></div></section>`;
+}
+async function load(){
+  try{
+    const d=await (await fetch("stats.json?"+Date.now(),{cache:"no-store"})).json();
+    $("#updated").textContent="Updated "+new Date(d.updated).toLocaleString()+" · refreshes every minute";
+    $("#bots").innerHTML=d.bots.map(bot).join("");
+  }catch(e){$("#updated").textContent="Could not load stats.json";}
+}
+load(); setInterval(load,60000);
+</script>
+</body>
+</html>
