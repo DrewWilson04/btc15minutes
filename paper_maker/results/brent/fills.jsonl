@@ -854,3 +854,12 @@
 {"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.51, "qty": 0.01, "minute": 1, "trade_time": "2026-11-21T04:45:16.825424Z", "ts": "2026-11-21T04:45:17.752266+00:00"}
 {"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.51, "qty": 0.91, "minute": 1, "trade_time": "2026-11-21T04:45:16.825424Z", "ts": "2026-11-21T04:45:17.752435+00:00"}
 {"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.53, "qty": 8.12, "minute": 2, "trade_time": "2026-11-21T04:46:17.067082Z", "ts": "2026-11-21T04:46:17.331861+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.55, "qty": 6.48, "minute": 4, "trade_time": "2026-11-21T04:48:02.688962Z", "ts": "2026-11-21T04:48:02.810522+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.55, "qty": 1.0, "minute": 4, "trade_time": "2026-11-21T04:48:02.688962Z", "ts": "2026-11-21T04:48:02.810677+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.56, "qty": 50.0, "minute": 4, "trade_time": "2026-11-21T04:48:58.138774Z", "ts": "2026-11-21T04:48:58.385447+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.63, "qty": 50.0, "minute": 5, "trade_time": "2026-11-21T04:49:45.366409Z", "ts": "2026-11-21T04:49:46.677532+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.73, "qty": 1.0, "minute": 6, "trade_time": "2026-11-21T04:50:36.236684Z", "ts": "2026-11-21T04:50:36.420294+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.73, "qty": 1.92, "minute": 6, "trade_time": "2026-11-21T04:50:36.236684Z", "ts": "2026-11-21T04:50:36.420467+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.73, "qty": 16.35, "minute": 6, "trade_time": "2026-11-21T04:50:36.295149Z", "ts": "2026-11-21T04:50:36.420508+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.73, "qty": 17.08, "minute": 6, "trade_time": "2026-11-21T04:50:36.295149Z", "ts": "2026-11-21T04:50:36.420541+00:00"}
+{"ticker": "KXBRENT15M-26NOV210000-00", "side": "yes", "price": 0.74, "qty": 6.86, "minute": 6, "trade_time": "2026-11-21T04:50:55.505294Z", "ts": "2026-11-21T04:50:58.529508+00:00"}
