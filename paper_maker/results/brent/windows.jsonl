@@ -23,3 +23,5 @@
 {"ticker": "KXBRENT15M-26NOV201915-15", "result": "no", "contracts": 199.6, "pnl": 66.987, "total": 101.93, "day_pnl": 101.93, "ts": "2026-11-21T00:15:39.929599+00:00"}
 {"ticker": "KXBRENT15M-26NOV201930-30", "result": "yes", "contracts": 133.55, "pnl": 33.5511, "total": 135.48, "day_pnl": 135.48, "ts": "2026-11-21T00:30:33.142202+00:00"}
 {"ticker": "KXBRENT15M-26NOV201945-45", "result": "yes", "contracts": 158.77, "pnl": 58.7727, "total": 194.25, "day_pnl": 194.25, "ts": "2026-11-21T00:45:36.031735+00:00"}
+{"ticker": "KXBRENT15M-26NOV202000-00", "result": "yes", "contracts": 168.19, "pnl": -80.5615, "total": 113.69, "day_pnl": 113.69, "ts": "2026-11-21T01:00:39.168486+00:00"}
+{"ticker": "KXBRENT15M-26NOV202015-15", "result": "yes", "contracts": 167.6, "pnl": -99.912, "total": 13.78, "day_pnl": 13.78, "ts": "2026-11-21T01:15:32.318846+00:00"}
