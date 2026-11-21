@@ -23,3 +23,5 @@
 {"ticker": "KXWTI15M-26NOV201930-30", "result": "no", "contracts": 137.26, "pnl": -99.9973, "total": 49.69, "day_pnl": 49.69, "ts": "2026-11-21T00:30:28.598629+00:00"}
 {"ticker": "KXWTI15M-26NOV201945-45", "result": "yes", "contracts": 162.5, "pnl": 62.5, "total": 112.19, "day_pnl": 112.19, "ts": "2026-11-21T00:45:36.550261+00:00"}
 {"ticker": "KXWTI15M-26NOV202015-15", "result": "yes", "contracts": 98.78999999999999, "pnl": -60.7619, "total": 51.43, "day_pnl": 51.43, "ts": "2026-11-21T01:15:32.195284+00:00"}
+{"ticker": "KXWTI15M-26NOV202030-30", "result": "yes", "contracts": 157.65, "pnl": -100.0009, "total": -48.57, "day_pnl": -48.57, "ts": "2026-11-21T01:30:35.459021+00:00"}
+{"ticker": "KXWTI15M-26NOV202045-45", "result": "no", "contracts": 155.11, "pnl": 55.1105, "total": 6.54, "day_pnl": 6.54, "ts": "2026-11-21T01:45:38.509294+00:00"}
