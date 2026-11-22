@@ -89,12 +89,12 @@ To change a setting, edit `config.json` (caps, minutes, which bots are on), then
 
 Off by default. `config.json` holds the mode and caps; the double-click files change it for you.
 
-1. **Set Kalshi Keys**: paste the API Key ID (it goes into Keychain) and pick the private key file
+1. **Oil Bot → 4 (Set Kalshi keys)**: paste the API Key ID (it goes into Keychain) and drag in the private key file
    (copied to `~/.oilbot/`, readable only by you).
-2. **Go Live**: signs in read-only to check the key and show your balance. Then pick:
+2. **Oil Bot → 5 (Go LIVE)**: signs in read-only to check the key and show your balance. Then pick:
    * *Demo (fake money)*: Kalshi's demo exchange. Needs a separate demo account and key from demo.kalshi.co.
    * *Real money*: you must type `I UNDERSTAND THIS IS REAL MONEY`.
-3. **Go Paper** switches back. The bots cancel their resting orders as they stop.
+3. **Oil Bot → 6 (Go back to PAPER)** switches back. The bots cancel their resting orders as they stop.
 
 Live rules: post-only buys of the favourite at the best bid. At most **$20 on the first side and $50 on the
 flip side** per round. Cancel and replace whenever the bid moves, held to settlement. Live logs go to `logs/live/<bot>`.

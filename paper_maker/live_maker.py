@@ -41,7 +41,7 @@ def load_keys():
             key_id = ""
     path = os.environ.get("OILBOT_KEY_FILE") or os.path.expanduser("~/.oilbot/kalshi_private_key.pem")
     if not key_id or not os.path.exists(path):
-        raise SystemExit("Kalshi keys not found. On a Mac double-click 'Set Kalshi Keys'; on the cloud server run ./cloud/set_keys.sh")
+        raise SystemExit("Kalshi keys not found. On a Mac open Oil Bot and choose 4 (Set Kalshi keys); on the cloud server run ./cloud/set_keys.sh")
     with open(path, "rb") as f:
         pem = f.read()
     return key_id, pem
@@ -273,6 +273,9 @@ class LiveMaker(PaperMaker):
             self.errors = 0
         except ApiError as e:
             self.errors += 0 if e.status in (400, 409) else 1
+            self.last_error = {"at": now().isoformat(), "msg": str(e)[:300]}
+            if e.status not in (400, 409):
+                self._step_failed = True
             print(f"[{now():%H:%M:%S}] api error ({self.errors}): {e}", flush=True)
             self.log(self.f_events, {"ev": "error", "msg": str(e)})
             if self.errors >= 5:

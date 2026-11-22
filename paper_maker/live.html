@@ -35,6 +35,20 @@ h1{font-size:22px;margin:0} .sub{color:var(--muted);font-size:13px}
 @media (max-width:480px){.grid4{grid-template-columns:repeat(2,1fr)}}
 .stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .pos{color:var(--good)} .neg{color:var(--bad)}
+.health{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--muted);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.health.ok{border-left-color:var(--good)} .health.wait{border-left-color:var(--warn)} .health.bad{border-left-color:var(--bad)}
+.hhead{display:flex;align-items:center;gap:12px}
+.hdot{width:16px;height:16px;border-radius:50%;background:var(--muted);flex:none}
+.health.ok .hdot{background:var(--good);box-shadow:0 0 0 4px rgba(76,194,133,.2)}
+.health.wait .hdot{background:var(--warn);box-shadow:0 0 0 4px rgba(224,163,65,.2)}
+.health.bad .hdot{background:var(--bad);box-shadow:0 0 0 4px rgba(239,110,99,.25)}
+.htitle{font-size:18px;font-weight:700}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.hbot{border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+.hbot h4{margin:0 0 4px;font-size:13px}
+.chk{display:grid;grid-template-columns:18px 1fr;gap:2px 6px;font-size:13px;align-items:baseline}
+.chk>span{min-width:0;overflow-wrap:anywhere}
+.chk .i{font-weight:700;text-align:center}.chk .i.ok{color:var(--good)}.chk .i.bad{color:var(--bad)}.chk .i.wait{color:var(--warn)}.chk .i.info{color:var(--muted)}
 h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600}
 .feed{max-height:220px;overflow-y:auto;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:8px}
 .feed div{padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -90,6 +104,10 @@ svg.spark{width:100%;height:60px;display:block}
     </div>
   </header>
   <div class="mode paper" id="mode">Loading…</div>
+  <section class="health" id="health" aria-live="polite">
+    <div class="hhead"><span class="hdot" id="hdot"></span><div><div class="htitle" id="htitle">Checking…</div><div class="sub" id="hsub"></div></div></div>
+    <div class="hgrid" id="hgrid"></div>
+  </section>
   <div class="msg" id="msg" hidden></div>
   <section class="card" id="history">
     <div class="rangebar">
@@ -467,11 +485,78 @@ async function control(action, which, btn) {
 document.getElementById("startAll").addEventListener("click", (e) => control("start", "all", e.target));
 document.getElementById("stopAll").addEventListener("click", (e) => control("stop", "all", e.target));
 
+function ago(iso, now) {
+  if (!iso) return null;
+  return Math.max(0, (new Date(now) - new Date(iso)) / 1000);
+}
+function agoText(s) {
+  if (s == null) return "never";
+  if (s < 90) return Math.round(s) + " s ago";
+  if (s < 5400) return Math.round(s / 60) + " min ago";
+  return (s / 3600).toFixed(1) + " h ago";
+}
+// Checks for one bot. Each check: [state, text], state = ok | bad | wait | info.
+function botChecks(b, d) {
+  const L = b.live || {}, C = [], hb = b.heartbeat_age_s;
+  const wantLive = d.mode === "live";
+  if (b.process_running === false) { C.push(["bad", "Bot program is stopped. Press Start."]); return C; }
+  C.push(["ok", "Bot program is running"]);
+  if (hb == null) { C.push(["wait", "Starting up… (no status yet)"]); return C; }
+  if (hb > 30) { C.push(["bad", `Bot stopped responding (last update ${agoText(hb)}). Press Stop, then Start.`]); return C; }
+  C.push(["ok", `Responding (last update ${agoText(hb)})`]);
+  const runMode = L.mode === "live" ? (L.env === "demo" ? "LIVE on demo" : "LIVE real money") : "PAPER";
+  const cfgMode = wantLive ? (d.env === "demo" ? "LIVE on demo" : "LIVE real money") : "PAPER";
+  if (runMode !== cfgMode) C.push(["bad", `Running in ${runMode} but set to ${cfgMode}. Press Stop, then Start.`]);
+  else C.push(["ok", `Mode: ${runMode}`]);
+  const okAge = ago(L.last_ok, d.now);
+  const err = L.last_error, errAge = err ? ago(err.at, d.now) : null;
+  if (okAge == null || okAge > 30) C.push(["bad", "Can't reach Kalshi" + (err ? ": " + err.msg : "") + ". Check the internet connection."]);
+  else C.push(["ok", "Connected to Kalshi (checked " + agoText(okAge) + ")"]);
+  if (err && errAge != null && errAge < 600 && okAge != null && okAge <= 30) C.push(["info", `Last error ${agoText(errAge)}: ${err.msg}`]);
+  if (L.mode === "live") {
+    if (L.halted) C.push(["bad", "HALTED: " + L.halted + ". Orders cancelled. Press Stop, then Start once fixed."]);
+    if (L.balance != null) C.push(["ok", `Signed in · Kalshi balance $${Number(L.balance).toFixed(2)}`]);
+    else C.push(["bad", "Not signed in to Kalshi (no balance). Check your keys."]);
+  }
+  if (!L.market) C.push(["wait", "No round open right now. Oil rounds run Sunday 6 pm to Friday midnight ET."]);
+  else {
+    const min = L.book ? L.book.minute : null;
+    let t = `Watching round ending ${roundLabel(L.market)}` + (min ? ` · minute ${min}` : "");
+    if (L.order) t += ` · order: buy ${L.order.side.toUpperCase()} @ ${Math.round(L.order.price * 100)}¢`;
+    else t += " · no order right now (outside the rules or cap reached)";
+    C.push(["ok", t]);
+  }
+  const lf = (b.recent_fills || [])[0];
+  if (lf && lf.ts) C.push(["info", `Last fill ${agoText(ago(lf.ts, d.now))}: ${String(lf.side || "").toUpperCase()} ${Number(lf.qty).toFixed(1)} @ ${Math.round(lf.price * 100)}¢`]);
+  return C;
+}
+function drawHealth(d, err) {
+  const box = document.getElementById("health"), T = document.getElementById("htitle"), S = document.getElementById("hsub"), G = document.getElementById("hgrid");
+  if (err) {
+    box.className = "health bad"; T.textContent = "NOT WORKING: the page can't reach the bot program";
+    S.textContent = "Double-click Oil Bot and choose 1 (Start). Nothing on this page is up to date."; G.replaceChildren(); return;
+  }
+  const per = d.bots.map((b) => ({ b, C: botChecks(b, d) }));
+  const bad = per.some((p) => p.C.some((c) => c[0] === "bad"));
+  const starting = per.some((p) => p.C.some((c) => c[0] === "wait" && /Starting/.test(c[1])));
+  const anyOpen = d.bots.some((b) => b.live && b.live.market);
+  if (bad) { box.className = "health bad"; T.textContent = "PROBLEM: something needs attention"; S.textContent = "See the red ✗ below."; }
+  else if (starting) { box.className = "health wait"; T.textContent = "Starting up…"; S.textContent = "Give it a few seconds."; }
+  else if (!anyOpen) { box.className = "health wait"; T.textContent = "WORKING: waiting for markets to open"; S.textContent = "Everything is connected. Oil rounds run Sunday 6 pm to Friday midnight ET."; }
+  else { box.className = "health ok"; T.textContent = d.mode === "live" ? "WORKING: trading live" : "WORKING: paper trading"; S.textContent = "Everything checks out. Checked every 3 seconds."; }
+  G.replaceChildren(...per.map(({ b, C }) => {
+    const card = $("div", "hbot"); card.append($("h4", null, NAMES[b.name] || b.name));
+    const g = $("div", "chk");
+    for (const [st, tx] of C) g.append($("span", "i " + st, { ok: "✓", bad: "✗", wait: "…", info: "·" }[st]), $("span", null, tx));
+    card.append(g); return card;
+  }));
+}
+
 async function tick() {
   try {
     const r = await fetch("/api/state" + (FROM ? "?from=" + FROM : ""), { cache: "no-store" });
     const d = await r.json(); LAST = d;
-    drawSummary(d); drawChart(d.bots);
+    drawHealth(d); drawSummary(d); drawChart(d.bots);
     const box = document.getElementById("bots");
     box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
     const mode = document.getElementById("mode");
@@ -482,6 +567,7 @@ async function tick() {
     document.getElementById("startAll").disabled = false; document.getElementById("stopAll").disabled = false;
     document.getElementById("upd").textContent = "Updated " + new Date().toLocaleTimeString() + " · refreshes every 3 s";
   } catch (e) {
+    drawHealth(null, true);
     const u = document.getElementById("upd"); u.textContent = "Can't reach the dashboard server. Is live_server.py running?"; u.className = "sub err";
   }
 }

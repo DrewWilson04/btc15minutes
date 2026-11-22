@@ -1,34 +1,43 @@
 OIL BOT
 
+Everything is in ONE file: double-click "Oil Bot". A Terminal window opens with a menu:
+
+  1  Start bots + open dashboard
+  2  Stop everything
+  3  Open dashboard
+  4  Set Kalshi keys
+  5  Go LIVE (real money or demo)
+  6  Go back to PAPER
+  Q  Quit the menu (bots keep running)
+
 It starts in PAPER mode (simulated, no real money). LIVE mode places real orders with real money.
 
 FIRST TIME
-1. Move this OilBot folder to your home folder (not Desktop/Documents if iCloud syncs them).
-2. Double-click "Start Oil Bot".
-   If macOS says it can't verify the developer: right-click the file, choose Open, then Open again.
-   (Once per file.) First run sets itself up in about a minute, then opens the dashboard:
-   http://localhost:8790
-3. Leave the Mac plugged in with the lid open. A closed lid means sleep, and the bots stop.
+1. If macOS blocks "Oil Bot" (only "Move to Trash" / "Done"): click Done, then System Settings ->
+   Privacy & Security -> scroll down -> "Open Anyway". Or in Terminal, inside this folder, run:
+     xattr -dr com.apple.quarantine . ; chmod +x *.command mac/*.sh
+2. Double-click "Oil Bot" and choose 1. The first run sets itself up in about a minute, then opens the
+   dashboard: http://localhost:8790
+3. Leave the Mac plugged in with the lid open. A sleeping Mac stops the bots.
 
-EVERYDAY
-- The dashboard shows the mode (PAPER / DEMO / LIVE), each bot's current round, fills and profit.
-- Start and stop the bots with the buttons on the dashboard page.
-- "Stop Oil Bot" stops everything, including the dashboard.
+IS IT WORKING?
+The dashboard has a status box at the top:
+  green  = WORKING, trading
+  yellow = WORKING, waiting for markets (oil rounds run Sunday 6 pm to Friday midnight ET), or starting
+  red    = PROBLEM, with a red X next to what's wrong (bot stopped, can't reach Kalshi, wrong mode,
+           not signed in, halted)
 
 GOING LIVE (real orders, real money)
-1. Double-click "Set Kalshi Keys": paste your API Key ID and pick your private key file.
-2. Double-click "Go Live". It signs in to Kalshi read-only first to check your key and show your balance.
-   - "Demo (fake money)" runs on Kalshi's demo exchange. This needs a separate demo account and demo
-     key from demo.kalshi.co. Recommended first.
-   - "Real money" makes you type: I UNDERSTAND THIS IS REAL MONEY
-3. The dashboard turns red: LIVE · REAL MONEY.
-4. To go back: double-click "Go Paper". Live orders are cancelled as the bots stop.
+1. kalshi.com -> Account & security -> API Keys -> Create key. Keep the Key ID and the key file.
+2. Oil Bot -> 4: paste the Key ID, then drag the key file into the window. It checks the key (read-only).
+3. Oil Bot -> 5 -> 1 (real money). It shows your balance, then you type: I UNDERSTAND THIS IS REAL MONEY
+4. The dashboard turns red: LIVE · REAL MONEY.
+5. To go back: Oil Bot -> 6. Live orders are cancelled as the bots restart.
 
 LIVE RULES (edit config.json to change)
-- Buys the favourite at the best bid, post-only (it never takes liquidity), minutes 1-12 (WTI 1-9).
+- Buys the favourite at the best bid, post-only (never takes liquidity), minutes 1-12 (WTI 1-9).
 - At most $20 on the first side each round and $50 on the flip side. Held to settlement.
 - Cancels its resting order whenever the price moves, at stop, at start-up, and if it halts.
 - Halts itself after 5 API errors in a row, or if a file named STOP is put in logs/live/.
 
-This strategy is not proven. Paper results so far are mixed (WTI up, Brent down on day one).
-Only use money you are fine losing.
+This strategy is not proven. Paper results so far are mixed. Only use money you are fine losing.

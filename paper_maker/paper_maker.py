@@ -149,8 +149,14 @@ class PaperMaker:
     # ---------- main step ----------
     def step(self):
         self.book = None
+        self._step_failed = False
         try:
             self._step()
+            if not self._step_failed:
+                self.last_ok = now().isoformat()
+        except Exception as e:
+            self.last_error = {"at": now().isoformat(), "msg": str(e)[:300]}
+            raise
         finally:
             self.write_live()
 
@@ -162,6 +168,8 @@ class PaperMaker:
                 "book": self.book, "order": self.order,
                 "window": {"at_risk": round(w["at_risk"], 2), "side_risk": w.get("side_risk"), "first_side": w.get("first_side"),
                            "contracts": round(sum(f["qty"] for f in w["fills"]), 2)} if w else None,
+                "mode": "paper", "pid": os.getpid(), "last_ok": getattr(self, "last_ok", None),
+                "last_error": getattr(self, "last_error", None),
                 "rules": {"max_minute": self.a.max_minute, "max_dog": self.a.max_dog, "side_cap": self.a.side_cap,
                           "flip_cap": self.a.flip_cap, "per_level": self.a.per_level}}
         tmp = os.path.join(self.a.log_dir, "live.json.tmp")
