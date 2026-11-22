@@ -25,7 +25,7 @@ PL
   launchctl unload "$LA/$label.plist" 2>/dev/null || true
   launchctl load -w "$LA/$label.plist"
   echo "installed $label"; }
-make com.oilbot.brent brent paper_maker.py --series KXBRENT15M --log-dir logs/brent --side-cap 100 --flip-cap 130
-make com.oilbot.wti wti paper_maker.py --series KXWTI15M --max-minute 9 --max-dog 0.40 --log-dir logs/wti --side-cap 100 --flip-cap 130
+make com.oilbot.brent brent run_bot.py brent
+make com.oilbot.wti wti run_bot.py wti
 make com.oilbot.dashboard dashboard live_server.py
 echo "Done. Dashboard: http://localhost:8790  (they now start automatically at login)"

@@ -85,3 +85,19 @@ Over the weekend the dashboard shows "Running · markets closed".
 
 To change a setting, edit the matching line in `mac/start.sh` and `mac/install_autostart.sh`. For example, to run Brent on WTI's
 rules, add `--max-minute 9 --max-dog 0.40` to the Brent line. Then rerun the start or install script.
+
+## Live trading (real money)
+
+Off by default. `config.json` holds the mode and caps; the double-click files change it for you.
+
+1. **Set Kalshi Keys**: paste the API Key ID (it goes into Keychain) and pick the private key file
+   (copied to `~/.oilbot/`, readable only by you).
+2. **Go Live**: signs in read-only to check the key and show your balance. Then pick:
+   * *Demo (fake money)*: Kalshi's demo exchange. Needs a separate demo account and key from demo.kalshi.co.
+   * *Real money*: you must type `I UNDERSTAND THIS IS REAL MONEY`.
+3. **Go Paper** switches back. The bots cancel their resting orders as they stop.
+
+Live rules: post-only buys of the favourite at the best bid. At most **$20 on the first side and $50 on the
+flip side** per round. Cancel and replace whenever the bid moves, held to settlement. Live logs go to `logs/live/<bot>`.
+Safety: the bot cancels its orders at start-up, at stop and at a halt. It halts after 5 API errors in a row, or when a
+file named `STOP` exists in `logs/live/`.

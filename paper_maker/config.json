@@ -1,0 +1,12 @@
+{
+  "mode": "paper",
+  "environment": "prod",
+  "live_confirm": "",
+  "first_side_cap": 20,
+  "flip_side_cap": 50,
+  "per_level": 50,
+  "bots": {
+    "brent": {"enabled": true, "series": "KXBRENT15M", "max_minute": 12, "max_dog": 0.5},
+    "wti":   {"enabled": true, "series": "KXWTI15M",   "max_minute": 9,  "max_dog": 0.40}
+  }
+}

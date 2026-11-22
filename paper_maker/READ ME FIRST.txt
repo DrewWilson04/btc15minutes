@@ -1,0 +1,34 @@
+OIL BOT
+
+It starts in PAPER mode (simulated, no real money). LIVE mode places real orders with real money.
+
+FIRST TIME
+1. Move this OilBot folder to your home folder (not Desktop/Documents if iCloud syncs them).
+2. Double-click "Start Oil Bot".
+   If macOS says it can't verify the developer: right-click the file, choose Open, then Open again.
+   (Once per file.) First run sets itself up in about a minute, then opens the dashboard:
+   http://localhost:8790
+3. Leave the Mac plugged in with the lid open. A closed lid means sleep, and the bots stop.
+
+EVERYDAY
+- The dashboard shows the mode (PAPER / DEMO / LIVE), each bot's current round, fills and profit.
+- Start and stop the bots with the buttons on the dashboard page.
+- "Stop Oil Bot" stops everything, including the dashboard.
+
+GOING LIVE (real orders, real money)
+1. Double-click "Set Kalshi Keys": paste your API Key ID and pick your private key file.
+2. Double-click "Go Live". It signs in to Kalshi read-only first to check your key and show your balance.
+   - "Demo (fake money)" runs on Kalshi's demo exchange. This needs a separate demo account and demo
+     key from demo.kalshi.co. Recommended first.
+   - "Real money" makes you type: I UNDERSTAND THIS IS REAL MONEY
+3. The dashboard turns red: LIVE · REAL MONEY.
+4. To go back: double-click "Go Paper". Live orders are cancelled as the bots stop.
+
+LIVE RULES (edit config.json to change)
+- Buys the favourite at the best bid, post-only (it never takes liquidity), minutes 1-12 (WTI 1-9).
+- At most $20 on the first side each round and $50 on the flip side. Held to settlement.
+- Cancels its resting order whenever the price moves, at stop, at start-up, and if it halts.
+- Halts itself after 5 API errors in a row, or if a file named STOP is put in logs/live/.
+
+This strategy is not proven. Paper results so far are mixed (WTI up, Brent down on day one).
+Only use money you are fine losing.
