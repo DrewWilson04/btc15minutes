@@ -14,7 +14,7 @@ fi
 echo "Using $($PY --version) at $(command -v $PY)"
 $PY -m venv .venv
 ./.venv/bin/pip install --quiet --upgrade pip
-./.venv/bin/pip install --quiet httpx cryptography
+./.venv/bin/pip install --quiet httpx cryptography segno
 mkdir -p logs
 echo
 echo "Setup done. Next:"

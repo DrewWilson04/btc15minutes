@@ -2,11 +2,12 @@
 """Local live dashboard for the paper bots.
 
     python3 live_server.py                      # http://localhost:8790
-    python3 live_server.py --host 0.0.0.0       # also reachable from your phone on the same Wi-Fi
+    python3 live_server.py --host 127.0.0.1     # this Mac only (default 0.0.0.0: phones on your Wi-Fi can view; only this Mac can press buttons)
 
 Reads the bots' log folders (default logs/brent and logs/wti) on every request. Standard library only.
 """
-import argparse, datetime as dt, json, os, shutil, signal, subprocess, sys
+import argparse, csv, datetime as dt, io, json, os, shutil, signal, socket, subprocess, sys
+from urllib.parse import parse_qs, urlparse
 from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -39,7 +40,7 @@ def read_json(path):
         return None
 
 
-def bot_state(log_dir):
+def bot_state(log_dir, frm=None):
     name = os.path.basename(os.path.normpath(log_dir))
     fills = rows(os.path.join(log_dir, "fills.jsonl"))
     wins = rows(os.path.join(log_dir, "windows.jsonl"))
@@ -53,7 +54,9 @@ def bot_state(log_dir):
     settled = []
     for w in wins:
         settled.append({"ticker": w["ticker"], "result": w["result"], "pnl": w["pnl"], "ts": w["ts"],
+                        "date": dt.datetime.fromisoformat(w["ts"]).astimezone(ET).date().isoformat(),
                         "put_in": round(cost[w["ticker"]], 2), "contracts": round(qty[w["ticker"]], 1)})
+    ranged = [x for x in settled if not frm or x["date"] >= frm]
 
     def summary(items):
         return {"rounds": len(items), "won": sum(x["pnl"] > 0 for x in items), "lost": sum(x["pnl"] < 0 for x in items),
@@ -68,18 +71,30 @@ def bot_state(log_dir):
     if live:
         age = (dt.datetime.now(UTC) - dt.datetime.fromisoformat(live["ts"])).total_seconds()
     equity, run = [], 0.0
-    for x in settled[-300:]:
+    for x in ranged:
         run += x["pnl"]
-        equity.append(round(run, 2))
+        equity.append({"t": x["ts"], "y": round(run, 2), "step": x["pnl"]})
     return {
         "name": name, "live": live, "heartbeat_age_s": age,
         "pending": [p["ticker"] for p in state.get("pending", [])],
         "current_fills": cur_fills[-40:],
         "recent_fills": fills[-25:][::-1],
-        "recent_rounds": settled[-20:][::-1],
-        "all": summary(settled), "today": summary(today_items),
+        "recent_rounds": ranged[-60:][::-1],
+        "all": summary(settled), "today": summary(today_items), "range": summary(ranged),
+        "first_date": settled[0]["date"] if settled else None, "_ranged": ranged,
         "equity": equity,
     }
+
+
+def lan_ip():
+    """This Mac's address on the local network (no traffic is sent)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1)); return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
 
 
 # ---- bot control (Start / Stop buttons) ----
@@ -165,16 +180,44 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_GET(self):
+        q = parse_qs(urlparse(self.path).query)
+        frm = (q.get("from") or [None])[0]
+        if frm and not (len(frm) == 10 and frm[4] == "-" and frm[7] == "-"):
+            frm = None
+        if self.path.startswith("/api/lanip"):
+            return self._send(200, json.dumps({"ip": lan_ip(), "port": self.server.server_address[1],
+                                               "listening_on_network": self.server.server_address[0] != "127.0.0.1"}), "application/json")
+        if self.path.startswith("/api/qr.svg"):
+            text = (q.get("text") or [""])[0][:500]
+            try:
+                import segno
+            except ImportError:
+                return self._send(501, "QR maker not installed (pip install segno)", "text/plain")
+            buf = io.BytesIO(); segno.make(text, error="m").save(buf, kind="svg", scale=6, border=2)
+            return self._send(200, buf.getvalue(), "image/svg+xml")
+        if self.path.startswith("/export.csv"):
+            cfg = run_bot.load_config(); out = io.StringIO(); wr = csv.writer(out)
+            wr.writerow(["bot", "round_end_et", "settled_utc", "result", "contracts", "put_in", "pnl", "running_total"])
+            for n in bot_names():
+                st = bot_state(run_bot.log_dir(cfg, n), frm); run = 0.0
+                for r in st["_ranged"]:
+                    run += r["pnl"]
+                    wr.writerow([n, r["ticker"], r["ts"], r["result"], r["contracts"], r["put_in"], round(r["pnl"], 2), round(run, 2)])
+            data = out.getvalue().encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv")
+            self.send_header("Content-Disposition", f'attachment; filename="oilbot_rounds_{frm or "all"}.csv"')
+            self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data); return
         if self.path.startswith("/api/state"):
             cfg = run_bot.load_config()
             names = bot_names()
             body = {"now": dt.datetime.now(UTC).isoformat(), "mode": cfg.get("mode", "paper"), "env": cfg.get("environment", "prod"),
                     "caps": {"first": cfg.get("first_side_cap"), "flip": cfg.get("flip_side_cap")},
-                    "bots": [bot_state(run_bot.log_dir(cfg, n)) for n in names]}
+                    "from": frm, "bots": [bot_state(run_bot.log_dir(cfg, n), frm) for n in names]}
             for b in body["bots"]:
-                b["process_running"] = bot_running(b["name"])
+                b["process_running"] = bot_running(b["name"]); b.pop("_ranged", None)
             return self._send(200, json.dumps(body), "application/json")
-        if self.path in ("/", "/index.html"):
+        if urlparse(self.path).path in ("/", "/index.html"):
             with open(os.path.join(HERE, "live.html"), "rb") as f:
                 return self._send(200, f.read(), "text/html; charset=utf-8")
         self._send(404, "not found", "text/plain")
@@ -199,7 +242,7 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
-    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--host", default="0.0.0.0", help="0.0.0.0 = viewable from your phone on the same Wi-Fi (buttons still work only on this Mac); 127.0.0.1 = this Mac only")
     p.add_argument("--port", type=int, default=8790)
     p.add_argument("--allow-remote-control", action="store_true", help="let other devices on your network press Start/Stop")
     a = p.parse_args()

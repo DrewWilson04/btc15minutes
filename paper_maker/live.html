@@ -6,10 +6,11 @@
 <title>Oil Bot Live</title>
 <style>
 /* Layout: one panel per bot; inside, "now" (current round) on top, then totals, fills and rounds */
-:root{--bg:#f4f6f5;--panel:#fff;--fg:#1a1e1c;--muted:#5f6863;--line:#dde2df;--good:#1d7a4b;--bad:#b4362c;--warn:#a4670b;--accent:#2f63a8;--bar:#e7ebe9;
+:root{--bg:#0e1110;--panel:#171b19;--panel2:#1d2220;--fg:#e6eae8;--muted:#98a29d;--line:#2a312e;--good:#4cc285;--bad:#ef6e63;--warn:#e0a341;
+--accent:#6c9be0;--bar:#262c29;--ink:#0b0f0d;--c0:#f0a35e;--c1:#6c9be0;color-scheme:dark;
 --sans:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
-@media (prefers-color-scheme:dark){:root{--bg:#111413;--panel:#1a1e1c;--fg:#e6eae8;--muted:#9aa49f;--line:#2c3330;--good:#4cc285;--bad:#ef6e63;--warn:#e0a341;--accent:#6c9be0;--bar:#262c29}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans)}
 .wrap{max-width:1200px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:16px}
 header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
@@ -48,13 +49,32 @@ svg.spark{width:100%;height:60px;display:block}
 .btn{font:inherit;font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
 .btn:hover{border-color:var(--muted)} .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .btn:disabled{opacity:.5;cursor:default}
-.btn.go{background:var(--good);border-color:var(--good);color:#fff} .btn.halt{background:var(--bad);border-color:var(--bad);color:#fff}
+.btn.go{background:var(--good);border-color:var(--good);color:var(--ink)} .btn.halt{background:var(--bad);border-color:var(--bad);color:var(--ink)}
 .right{display:flex;gap:8px;align-items:center}
 .msg{font-size:12px;color:var(--muted)}
 .mode{border-radius:10px;padding:10px 14px;font-weight:600;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
 .mode.paper{background:var(--panel);border:1px solid var(--line);color:var(--muted)}
-.mode.live{background:var(--bad);color:#fff} .mode.demo{background:var(--warn);color:#fff}
-.halt{background:var(--bad);color:#fff;border-radius:8px;padding:8px 10px;font-size:13px}
+.mode.live{background:var(--bad);color:var(--ink)} .mode.demo{background:var(--warn);color:var(--ink)}
+.halt{background:var(--bad);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.rangebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rangebar label{color:var(--muted);font-size:13px}
+.rangebar input[type=date]{font:inherit;font-size:13px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
+.chip{font:inherit;font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:600}
+.chip:focus-visible,.rangebar input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sumrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.chartwrap{position:relative;min-height:280px}
+.chartwrap svg text{fill:var(--muted);font-size:11px;font-family:var(--sans)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);list-style:none;margin:0;padding:0}
+.legend li{display:flex;align-items:center;gap:6px}.sw{width:14px;height:3px;border-radius:2px;display:inline-block}
+.tip{position:absolute;pointer-events:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:3}
+.dl{display:flex;flex-wrap:wrap;gap:8px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:360px;width:100%;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
+.qr{background:#fff;padding:12px;border-radius:10px}
+.qr img,.qr canvas{display:block}
+.small{font-size:12px;color:var(--muted);word-break:break-all}
 </style>
 </head>
 <body>
@@ -69,7 +89,38 @@ svg.spark{width:100%;height:60px;display:block}
   </header>
   <div class="mode paper" id="mode">Loading…</div>
   <div class="msg" id="msg" hidden></div>
+  <section class="card" id="history">
+    <div class="rangebar">
+      <label for="from">Show from</label>
+      <input type="date" id="from">
+      <button class="chip" type="button" data-days="0">Today</button>
+      <button class="chip" type="button" data-days="7">7 days</button>
+      <button class="chip" type="button" data-days="30">30 days</button>
+      <button class="chip" type="button" data-days="all">All</button>
+      <span class="sub" id="rangeLabel"></span>
+    </div>
+    <div class="sumrow" id="sumrow"></div>
+    <div>
+      <h3>Running profit in this period</h3>
+      <ul class="legend"><li><span class="sw" style="background:var(--c0)"></span>Brent</li><li><span class="sw" style="background:var(--c1)"></span>WTI</li><li><span class="sw" style="background:var(--good)"></span>Both</li></ul>
+      <div class="chartwrap" id="chart"></div>
+    </div>
+    <div class="dl">
+      <a class="btn" id="csv" href="/export.csv">Download rounds (CSV)</a>
+      <button class="btn" id="png" type="button">Save chart (PNG)</button>
+      <button class="btn" id="qrbtn" type="button">QR code for your phone</button>
+    </div>
+  </section>
   <div class="bots" id="bots"></div>
+  <div class="modal" id="qrmodal" hidden>
+    <div class="box" role="dialog" aria-modal="true" aria-labelledby="qrtitle">
+      <h2 id="qrtitle" style="margin:0;font-size:17px">Open on your phone</h2>
+      <div class="qr" id="qr"></div>
+      <div class="small" id="qrurl"></div>
+      <div class="small" id="qrnote">Scan with your phone's camera. Your phone must be on the same Wi-Fi as this Mac. The page opens with the same dates, and you can download the CSV from there.</div>
+      <button class="btn" id="qrclose" type="button">Close</button>
+    </div>
+  </div>
 </div>
 <script>
 const $ = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
@@ -111,7 +162,7 @@ function botPanel(b, now) {
   else if (!live.market) pill = $("span", "pill idle", "Running · markets closed");
   else pill = $("span", "pill run", "Running");
   const right = $("div", "right"); right.append(pill);
-  if (proc != null) {
+  if (proc != null && LOCAL) {
     const btn = $("button", "btn " + (alive ? "halt" : "go"), alive ? "Stop" : "Start");
     btn.type = "button"; btn.setAttribute("aria-label", (alive ? "Stop " : "Start ") + (NAMES[b.name] || b.name) + " bot");
     btn.addEventListener("click", () => control(alive ? "stop" : "start", b.name, btn));
@@ -159,15 +210,15 @@ function botPanel(b, now) {
   if (live && live.halted) el.insertBefore($("div", "halt", "Halted: " + live.halted + ". Its orders were cancelled. Press Start to resume."), nowBox);
   // totals
   const g = $("div", "grid4");
-  g.append(stat("Today (settled)", money(b.today.net), cls(b.today.net)), stat("All rounds", money(b.all.net), cls(b.all.net)),
-    stat("Won / lost", `${b.all.won} / ${b.all.lost}`), stat("Money put in", usd(b.all.put_in)));
+  g.append(stat("Today (settled)", money(b.today.net), cls(b.today.net)), stat(FROM ? "Selected period" : "All rounds", money(b.range.net), cls(b.range.net)),
+    stat("Won / lost", `${b.range.won} / ${b.range.lost}`), stat("Money put in", usd(b.range.put_in)));
   if (live && live.mode === "live" && live.balance != null) g.append(stat("Kalshi balance", usd(live.balance)));
   el.append(g);
   const ud = $("div", "row"); ud.style.display = "flex"; ud.style.gap = "18px"; ud.style.fontSize = "12px";
-  ud.append($("span", "pos", "Up rounds " + money(b.all.up)), $("span", "neg", "Down rounds " + money(b.all.down)),
+  ud.append($("span", "pos", "Up rounds " + money(b.range.up)), $("span", "neg", "Down rounds " + money(b.range.down)),
     $("span", "label", b.pending.length ? `${b.pending.length} round(s) waiting to settle` : ""));
   el.append(ud);
-  const sp = $("div"); sp.append($("h3", null, "Running profit by settled round")); sp.append(spark(b.equity)); el.append(sp);
+  const sp = $("div"); sp.append($("h3", null, "Running profit by settled round")); sp.append(spark(b.equity.map((p) => p.y))); el.append(sp);
 
   // fills feed
   const ff = $("div"); ff.append($("h3", null, "Latest fills"));
@@ -177,7 +228,7 @@ function botPanel(b, now) {
   ff.append(feed); el.append(ff);
 
   // settled rounds
-  const rr = $("div"); rr.append($("h3", null, "Settled rounds"));
+  const rr = $("div"); rr.append($("h3", null, FROM ? "Settled rounds in this period" : "Settled rounds"));
   const tw = $("div", "tw"); const t = $("table");
   const thr = $("tr"); ["Round ends", "Result", "Contracts", "Put in", "P&L"].forEach((h) => thr.append($("th", null, h)));
   const thead = $("thead"); thead.append(thr); t.append(thead);
@@ -191,6 +242,133 @@ function botPanel(b, now) {
   t.append(tb); tw.append(t); rr.append(tw); el.append(rr);
   return el;
 }
+
+const LOCAL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+if (!LOCAL) document.querySelectorAll("#startAll,#stopAll").forEach((b) => (b.hidden = true));
+const qs = new URLSearchParams(location.search);
+let FROM = /^\d{4}-\d{2}-\d{2}$/.test(qs.get("from") || "") ? qs.get("from") : null;
+let LAST = null;
+const etDate = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+function setFrom(v) {
+  FROM = v || null;
+  const u = new URL(location.href); if (FROM) u.searchParams.set("from", FROM); else u.searchParams.delete("from");
+  history.replaceState(null, "", u);
+  document.getElementById("from").value = FROM || "";
+  document.getElementById("csv").href = "/export.csv" + (FROM ? "?from=" + FROM : "");
+  const today = etDate(new Date());
+  document.querySelectorAll(".chip").forEach((c) => {
+    const d = c.dataset.days; let match = false;
+    if (d === "all") match = !FROM;
+    else { const t = new Date(); t.setDate(t.getDate() - Number(d)); match = FROM === etDate(t); }
+    c.setAttribute("aria-pressed", String(match));
+  });
+  tick();
+}
+document.getElementById("from").addEventListener("change", (e) => setFrom(e.target.value));
+document.querySelectorAll(".chip").forEach((c) => c.addEventListener("click", () => {
+  if (c.dataset.days === "all") return setFrom(null);
+  const t = new Date(); t.setDate(t.getDate() - Number(c.dataset.days)); setFrom(etDate(t));
+}));
+
+function drawChart(bots) {
+  const host = document.getElementById("chart"); host.replaceChildren();
+  const series = [["brent", "var(--c0)", "Brent"], ["wti", "var(--c1)", "WTI"]]
+    .map(([n, c, label]) => { const b = bots.find((x) => x.name === n); return b ? { label, color: c, pts: b.equity.map((p) => ({ t: new Date(p.t), y: p.y, step: p.step })) } : null; })
+    .filter((s) => s && s.pts.length);
+  if (!series.length) { host.append($("div", "label", "No settled rounds in this period yet.")); return; }
+  // combined running total across bots, in time order
+  const all = series.flatMap((s) => s.pts.map((p) => ({ t: p.t, step: p.step }))).sort((a, b) => a.t - b.t);
+  let run = 0; series.push({ label: "Both", color: "var(--good)", pts: all.map((p) => ({ t: p.t, y: (run += p.step), step: p.step })), wide: true });
+  const W = Math.max(300, host.clientWidth), H = 280, m = { t: 12, r: 14, b: 30, l: 66 };
+  const ts = series.flatMap((s) => s.pts.map((p) => +p.t)), ys = series.flatMap((s) => s.pts.map((p) => p.y));
+  let t0 = Math.min(...ts), t1 = Math.max(...ts); if (t1 === t0) t1 = t0 + 3600e3;
+  const lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), pad = (hi - lo) * 0.08 || 10, y0 = lo - pad, y1 = hi + pad;
+  const X = (t) => m.l + (W - m.l - m.r) * ((t - t0) / (t1 - t0)), Y = (v) => m.t + (H - m.t - m.b) * (1 - (v - y0) / (y1 - y0));
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%"); svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Running profit in the selected period for Brent, WTI and both combined");
+  const mk = (t, a) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
+  mk("rect", { x: 0, y: 0, width: W, height: H, fill: "var(--panel)" });
+  const raw = (y1 - y0) / 5, mag = Math.pow(10, Math.floor(Math.log10(raw))), st = [1, 2, 5, 10].map((f) => f * mag).find((v) => v >= raw);
+  for (let v = Math.ceil(y0 / st) * st; v <= y1; v += st) {
+    mk("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: Math.abs(v) < 1e-9 ? "var(--muted)" : "var(--line)" });
+    mk("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }).textContent = money(v, 0);
+  }
+  const span = t1 - t0, n = Math.max(2, Math.floor((W - m.l) / 110));
+  const fmt = span > 2 * 86400e3 ? { month: "short", day: "numeric", timeZone: "America/New_York" } : { weekday: "short", hour: "numeric", timeZone: "America/New_York" };
+  for (let i = 0; i <= n; i++) { const t = t0 + (span * i) / n; mk("text", { x: X(t), y: H - 8, "text-anchor": i === 0 ? "start" : i === n ? "end" : "middle" }).textContent = new Date(t).toLocaleString("en-US", fmt); }
+  for (const s of series) {
+    mk("polyline", { points: s.pts.map((p) => `${X(+p.t)},${Y(p.y)}`).join(" "), fill: "none", stroke: s.color, "stroke-width": s.wide ? 2.5 : 1.6, "stroke-linejoin": "round", opacity: s.wide ? 1 : 0.85 });
+    const l = s.pts[s.pts.length - 1]; mk("circle", { cx: X(+l.t), cy: Y(l.y), r: 3.5, fill: s.color });
+  }
+  host.append(svg);
+  const tip = $("div", "tip"); tip.hidden = true; host.append(tip);
+  svg.addEventListener("pointermove", (e) => {
+    const r = svg.getBoundingClientRect(), px = ((e.clientX - r.left) * W) / r.width, t = t0 + ((px - m.l) / (W - m.l - m.r)) * (t1 - t0);
+    tip.replaceChildren($("div", "label", new Date(t).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET"));
+    for (const s of series) { let last = null; for (const p of s.pts) { if (+p.t <= t) last = p; else break; } tip.append($("div", null, `${s.label}: ${money(last ? last.y : 0)}`)); }
+    tip.hidden = false; const bw = host.clientWidth; let left = e.clientX - host.getBoundingClientRect().left + 12; if (left + tip.offsetWidth > bw) left -= tip.offsetWidth + 24;
+    tip.style.left = Math.max(0, left) + "px"; tip.style.top = "6px";
+  });
+  svg.addEventListener("pointerleave", () => (tip.hidden = true));
+}
+
+function drawSummary(d) {
+  const row = document.getElementById("sumrow"); row.replaceChildren();
+  const tot = { net: 0, put_in: 0, won: 0, lost: 0, up: 0, down: 0, rounds: 0 };
+  for (const b of d.bots) for (const k in tot) tot[k] += b.range[k];
+  row.append(stat("Profit (both bots)", money(tot.net), cls(tot.net)), stat("Rounds won / lost", `${tot.won} / ${tot.lost}`),
+    stat("Money put in", usd(tot.put_in)), stat("Return on money put in", tot.put_in ? (tot.net >= 0 ? "+" : "") + (100 * tot.net / tot.put_in).toFixed(1) + "%" : "–", cls(tot.net)),
+    stat("Up rounds total", money(tot.up), "pos"), stat("Down rounds total", money(tot.down), "neg"));
+  const first = d.bots.map((b) => b.first_date).filter(Boolean).sort()[0];
+  document.getElementById("rangeLabel").textContent = FROM ? `${FROM} to now (ET)` : first ? `All rounds since ${first}` : "";
+  if (!document.getElementById("from").max) document.getElementById("from").max = etDate(new Date());
+  if (first) document.getElementById("from").min = first;
+}
+
+document.getElementById("png").addEventListener("click", () => {
+  const svg = document.querySelector("#chart svg"); if (!svg) return;
+  const cs = getComputedStyle(document.documentElement);
+  let xml = new XMLSerializer().serializeToString(svg).replace(/var\(--([a-z0-9]+)\)/g, (_, v) => cs.getPropertyValue("--" + v).trim());
+  const fam = cs.getPropertyValue("--sans").replace(/"/g, "'").trim();
+  xml = xml.replace("<svg", `<svg style="font-family:${fam}" `).replace(/<text /g, `<text fill="${cs.getPropertyValue("--muted").trim()}" font-size="11" `);
+  const vb = svg.viewBox.baseVal, img = new Image(), scale = 2;
+  xml = xml.replace('width="100%"', `width="${vb.width}" height="${vb.height}"`);
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = vb.width * scale; c.height = (vb.height + 40) * scale;
+    const g = c.getContext("2d"); g.scale(scale, scale); g.fillStyle = cs.getPropertyValue("--panel").trim(); g.fillRect(0, 0, vb.width, vb.height + 40);
+    g.fillStyle = cs.getPropertyValue("--fg").trim(); g.font = "600 14px " + cs.getPropertyValue("--sans");
+    g.fillText("Oil bot running profit · " + (FROM ? FROM + " to now" : "all rounds"), 12, 24);
+    let lx = vb.width - 12; g.font = "12px " + cs.getPropertyValue("--sans"); g.textAlign = "right";
+    for (const [lab, v] of [["Both", "--good"], ["WTI", "--c1"], ["Brent", "--c0"]]) {
+      g.fillStyle = cs.getPropertyValue(v).trim(); g.fillText(lab, lx, 24); lx -= g.measureText(lab).width + 8; g.fillRect(lx - 14, 19, 14, 3); lx -= 26;
+    }
+    g.drawImage(img, 0, 40, vb.width, vb.height);
+    const a = document.createElement("a"); a.download = `oilbot_chart_${FROM || "all"}.png`; a.href = c.toDataURL("image/png"); a.click();
+  };
+  img.onerror = () => { const m = document.getElementById("msg"); m.textContent = "Couldn't save the chart image."; m.className = "msg err"; m.hidden = false; };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+});
+
+const qrModal = document.getElementById("qrmodal");
+document.getElementById("qrbtn").addEventListener("click", async () => {
+  let base = location.origin;
+  try { const r = await (await fetch("/api/lanip")).json(); if (LOCAL) base = `http://${r.ip}:${r.port}`;
+        document.getElementById("qrnote").textContent = r.listening_on_network
+          ? "Scan with your phone's camera. Your phone must be on the same Wi-Fi as this Mac. The page opens with the same dates, and you can download the CSV there."
+          : "The dashboard is set to this Mac only, so a phone can't open it. Restart it without --host 127.0.0.1 to allow phones on your Wi-Fi."; } catch (e) {}
+  const url = base + "/" + (FROM ? "?from=" + FROM : "");
+  document.getElementById("qrurl").textContent = url;
+  const box = document.getElementById("qr"); box.replaceChildren();
+  const img = new Image(); img.width = 220; img.height = 220; img.alt = "QR code linking to " + url;
+  img.onerror = () => box.replaceChildren($("div", "small", "Couldn't make the QR code. Type the address below on your phone instead."));
+  img.src = "/api/qr.svg?text=" + encodeURIComponent(url); box.append(img);
+  qrModal.hidden = false; document.getElementById("qrclose").focus();
+});
+document.getElementById("qrclose").addEventListener("click", () => (qrModal.hidden = true));
+qrModal.addEventListener("click", (e) => { if (e.target === qrModal) qrModal.hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") qrModal.hidden = true; });
+new ResizeObserver(() => LAST && drawChart(LAST.bots)).observe(document.getElementById("chart"));
 
 async function control(action, which, btn) {
   const all = [...document.querySelectorAll(".btn")]; all.forEach((x) => (x.disabled = true));
@@ -212,8 +390,9 @@ document.getElementById("stopAll").addEventListener("click", (e) => control("sto
 
 async function tick() {
   try {
-    const r = await fetch("/api/state", { cache: "no-store" });
-    const d = await r.json();
+    const r = await fetch("/api/state" + (FROM ? "?from=" + FROM : ""), { cache: "no-store" });
+    const d = await r.json(); LAST = d;
+    drawSummary(d); drawChart(d.bots);
     const box = document.getElementById("bots");
     box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
     const mode = document.getElementById("mode");
@@ -227,7 +406,7 @@ async function tick() {
     const u = document.getElementById("upd"); u.textContent = "Can't reach the dashboard server. Is live_server.py running?"; u.className = "sub err";
   }
 }
-tick(); setInterval(tick, 3000);
+setFrom(FROM); setInterval(tick, 3000);
 </script>
 </body>
 </html>
