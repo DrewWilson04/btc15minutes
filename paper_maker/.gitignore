@@ -5,3 +5,4 @@ site/
 push.out
 run/
 .venv/
+__pycache__/

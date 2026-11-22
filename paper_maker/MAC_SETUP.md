@@ -80,11 +80,10 @@ Over the weekend the dashboard shows "Running · markets closed".
 ## Settings in use
 
 * Brent: buys the favourite (price above 50¢) at the best bid in minutes 1–12. WTI: minutes 1–9, only when the underdog is under 40¢.
-* Per round: at most $100 on the first side bought, and $130 on the other side if the price flips.
+* Per round: at most $20 on the first side bought, and $50 on the other side if the price flips (paper and live).
 * At most 50 contracts per price level. Held to settlement, never sold early.
 
-To change a setting, edit the matching line in `mac/start.sh` and `mac/install_autostart.sh`. For example, to run Brent on WTI's
-rules, add `--max-minute 9 --max-dog 0.40` to the Brent line. Then rerun the start or install script.
+To change a setting, edit `config.json` (caps, minutes, which bots are on), then restart the bots with the dashboard buttons.
 
 ## Live trading (real money)
 
