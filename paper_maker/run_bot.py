@@ -43,6 +43,13 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"FAILED: {e}"); sys.exit(1)
         sys.exit(0)
+    if len(sys.argv) > 1 and sys.argv[1] == "--test-order":
+        from live_maker import test_order
+        try:
+            print("OK: " + test_order(cfg.get("environment", "prod")))
+        except BaseException as e:
+            print(f"FAILED: {e}"); sys.exit(1)
+        sys.exit(0)
     name = sys.argv[1]
     if not cfg["bots"].get(name, {}).get("enabled", True):
         print(f"{name} is disabled in config.json"); sys.exit(0)

@@ -9,9 +9,9 @@ Differences from paper:
   * on start: cancels any resting orders it finds for this series; on stop (SIGTERM / Ctrl-C) or a halt: cancels its order
   * halts itself (cancels and stops quoting until restarted) after repeated API errors, or when a STOP file exists
 
-Order format (Kalshi V2, POST /portfolio/events/orders, prices on the YES side):
-  buy YES at p  ->  side "bid", price p
-  buy NO  at q  ->  side "ask", price 1 - q
+Order format (Kalshi standard order, POST /portfolio/orders):
+  {"action": "buy", "side": "yes"|"no", "type": "limit", "count": <whole contracts>, "<side>_price": <cents>, "post_only": true}
+  (The newer events/orders "bid/ask" form was rejected with insufficient_balance when buying NO, so it is not used.)
 """
 import base64, datetime as dt, json, math, os, signal, subprocess, sys, time, uuid
 import httpx
@@ -141,12 +141,13 @@ class LiveMaker(PaperMaker):
 
     # ----- orders -----
     def place(self, side, price, count):
-        body = {"ticker": self.market["ticker"], "client_order_id": str(uuid.uuid4()),
-                "side": "bid" if side == "yes" else "ask",
-                "price": f"{(price if side == 'yes' else 1 - price):.4f}",
-                "count": f"{count:.2f}", "time_in_force": "good_till_canceled", "post_only": True,
-                "self_trade_prevention_type": "maker", "cancel_order_on_pause": True}
-        r = self.auth.call("POST", "/portfolio/events/orders", body=body)
+        # Kalshi's standard order: "buy <side> at <cents>", whole contracts, post-only (rests, never takes).
+        cents = int(math.floor(price * 100 + 1e-6))
+        n = int(math.floor(count + 1e-9))
+        body = {"ticker": self.market["ticker"], "client_order_id": str(uuid.uuid4()), "action": "buy", "side": side,
+                "type": "limit", "count": n, f"{side}_price": cents, "post_only": True}
+        r = self.auth.call("POST", "/portfolio/orders", body=body)
+        count = n
         oid = r.get("order_id") or (r.get("order") or {}).get("order_id")
         self.my_orders.add(oid)
         self.live_order = {"id": oid, "side": side, "price": price, "count": count, "placed": now().isoformat()}
@@ -158,7 +159,7 @@ class LiveMaker(PaperMaker):
         if not o:
             return
         try:
-            self.auth.call("DELETE", f"/portfolio/events/orders/{o['id']}")
+            self.auth.call("DELETE", f"/portfolio/orders/{o['id']}")
         except ApiError as e:
             if e.status not in (404, 400):              # already filled / already gone is fine
                 raise
@@ -174,7 +175,7 @@ class LiveMaker(PaperMaker):
         for o in d.get("orders", []):
             if o.get("ticker", "").startswith(self.a.series + "-"):
                 try:
-                    self.auth.call("DELETE", f"/portfolio/events/orders/{o['order_id']}")
+                    self.auth.call("DELETE", f"/portfolio/orders/{o['order_id']}")
                     self.log(self.f_events, {"ev": "cancel", "why": why, "id": o["order_id"], "ticker": o["ticker"]})
                     print(f"[{now():%H:%M:%S}] cancelled leftover order {o['order_id']} on {o['ticker']}", flush=True)
                 except ApiError as e:
@@ -204,7 +205,10 @@ class LiveMaker(PaperMaker):
             self.seen_fills.add(fid)
             side = f.get("outcome_side") or f.get("side")
             qty = float(f.get("count_fp") or f.get("count"))
-            price = float(f.get("yes_price_dollars") if side == "yes" else f.get("no_price_dollars"))
+            if f.get(f"{side}_price_dollars") is not None:
+                price = float(f[f"{side}_price_dollars"])
+            else:
+                price = float(f.get(f"{side}_price")) / 100.0      # cents
             fee = float(f.get("fee_cost") or 0)
             tt = ts(f["created_time"]) if f.get("created_time") else now()
             self.fill_cursor = max(self.fill_cursor, int(tt.timestamp()))
@@ -302,7 +306,7 @@ class LiveMaker(PaperMaker):
                 depth = max(0.0, depth - self.live_order["count"])
             if 1 <= minute <= self.a.max_minute and self.a.min_dog <= 1 - price < self.a.max_dog and self.allowed(fav):
                 room = self.side_limit(fav) - self.win["side_risk"][fav]
-                count = math.floor(min(self.a.per_level, room / price) * 100) / 100
+                count = math.floor(min(self.a.per_level, room / price))
                 if count >= MIN_CONTRACTS:
                     want = (fav, price, count, depth)
         o = self.live_order
@@ -311,7 +315,7 @@ class LiveMaker(PaperMaker):
             self.process_trades(m)                      # catch anything that filled before the cancel landed
             if want:                                    # re-size with the latest fills
                 room = self.side_limit(want[0]) - self.win["side_risk"][want[0]]
-                count = math.floor(min(self.a.per_level, room / want[1]) * 100) / 100
+                count = math.floor(min(self.a.per_level, room / want[1]))
                 want = (want[0], want[1], count, want[3]) if count >= MIN_CONTRACTS else None
         if want and not self.live_order:
             self.place(want[0], want[1], want[2])
@@ -365,3 +369,22 @@ def check_keys(env):
     c = AuthClient(HOSTS[env], Signer(key_id, pem))
     b = c.call("GET", "/portfolio/balance")
     return balance_dollars(b), b
+
+
+def test_order(env, series="KXBRENT15M"):
+    """Places ONE tiny real order (buy 1 NO at 1 cent, post-only, so it rests and almost surely never fills),
+    then cancels it straight away. Proves Kalshi accepts the bot's orders. Worst case cost: $0.01."""
+    key_id, pem = load_keys()
+    c = AuthClient(HOSTS[env], Signer(key_id, pem))
+    pub = pm.Client()
+    ms = pub.get("/markets", {"series_ticker": series, "status": "open", "limit": 5}).get("markets", [])
+    if not ms:
+        return "no open market right now (oil rounds run Sunday 6 pm to Friday midnight ET), try again then"
+    t = ms[0]["ticker"]
+    body = {"ticker": t, "client_order_id": str(uuid.uuid4()), "action": "buy", "side": "no", "type": "limit",
+            "count": 1, "no_price": 1, "post_only": True}
+    r = c.call("POST", "/portfolio/orders", body=body)
+    oid = r.get("order_id") or (r.get("order") or {}).get("order_id")
+    status = (r.get("order") or {}).get("status")
+    c.call("DELETE", f"/portfolio/orders/{oid}")
+    return f"placed and cancelled a 1-contract test order on {t} (status was {status})"
