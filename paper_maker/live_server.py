@@ -131,8 +131,21 @@ def launchd_loaded(name):
     return subprocess.run(["launchctl", "list", f"com.oilbot.{name}"], capture_output=True).returncode == 0
 
 
+def systemd_unit(name):
+    """Linux cloud server: per-user systemd service installed by cloud/install.sh."""
+    unit = f"oilbot-{name}.service"
+    if shutil.which("systemctl") and os.path.exists(os.path.expanduser(f"~/.config/systemd/user/{unit}")):
+        return unit
+    return None
+
+
+def systemd_active(name):
+    unit = systemd_unit(name)
+    return bool(unit) and subprocess.run(["systemctl", "--user", "is-active", "--quiet", unit]).returncode == 0
+
+
 def bot_running(name):
-    return bool(pid_alive(name) or launchd_loaded(name))
+    return bool(pid_alive(name) or launchd_loaded(name) or systemd_active(name))
 
 
 def start_bot(name):
@@ -140,6 +153,9 @@ def start_bot(name):
         return "already running"
     if os.path.exists(plist(name)) and shutil.which("launchctl"):
         subprocess.run(["launchctl", "load", "-w", plist(name)], capture_output=True)
+        return "started (service)"
+    if systemd_unit(name):
+        subprocess.run(["systemctl", "--user", "start", systemd_unit(name)], capture_output=True)
         return "started (service)"
     os.makedirs(RUN, exist_ok=True); os.makedirs(os.path.join(HERE, "logs"), exist_ok=True)
     out = open(os.path.join(HERE, "logs", f"{name}.out"), "a")
@@ -155,6 +171,9 @@ def stop_bot(name):
     msg = "not running"
     if launchd_loaded(name):
         subprocess.run(["launchctl", "unload", "-w", plist(name)], capture_output=True)
+        msg = "stopped (service)"
+    if systemd_active(name):
+        subprocess.run(["systemctl", "--user", "stop", systemd_unit(name)], capture_output=True)
         msg = "stopped (service)"
     pid = pid_alive(name)
     if pid:

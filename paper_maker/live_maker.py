@@ -33,9 +33,15 @@ def load_keys():
                                     capture_output=True, text=True, timeout=10).stdout.strip()
         except (OSError, subprocess.SubprocessError):
             key_id = ""
+    if not key_id:                                  # Linux / cloud: ~/.oilbot/key_id (chmod 600)
+        try:
+            with open(os.path.expanduser("~/.oilbot/key_id")) as f:
+                key_id = f.read().strip()
+        except OSError:
+            key_id = ""
     path = os.environ.get("OILBOT_KEY_FILE") or os.path.expanduser("~/.oilbot/kalshi_private_key.pem")
     if not key_id or not os.path.exists(path):
-        raise SystemExit("Kalshi keys not found. Double-click 'Set Kalshi Keys' first.")
+        raise SystemExit("Kalshi keys not found. On a Mac double-click 'Set Kalshi Keys'; on the cloud server run ./cloud/set_keys.sh")
     with open(path, "rb") as f:
         pem = f.read()
     return key_id, pem
