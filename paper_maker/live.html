@@ -44,14 +44,26 @@ th{color:var(--muted);font-weight:500}
 .tw{overflow-x:auto;max-height:260px;overflow-y:auto}
 svg.spark{width:100%;height:60px;display:block}
 .err{color:var(--bad)}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{font:inherit;font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.btn:hover{border-color:var(--muted)} .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.go{background:var(--good);border-color:var(--good);color:#fff} .btn.halt{background:var(--bad);border-color:var(--bad);color:#fff}
+.right{display:flex;gap:8px;align-items:center}
+.msg{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
     <h1>Oil bot live <span class="sub">(paper trading, no real money)</span></h1>
-    <span class="sub" id="upd">Connecting…</span>
+    <div class="ctl">
+      <button class="btn go" id="startAll" type="button">Start both</button>
+      <button class="btn halt" id="stopAll" type="button">Stop both</button>
+      <span class="sub" id="upd">Connecting…</span>
+    </div>
   </header>
+  <div class="msg" id="msg" hidden></div>
   <div class="bots" id="bots"></div>
 </div>
 <script>
@@ -87,10 +99,20 @@ function botPanel(b, now) {
   const head = $("div", "bothead");
   head.append($("h2", null, NAMES[b.name] || b.name));
   let pill;
-  if (age == null || age > 30) pill = $("span", "pill stop", "Bot not running");
+  const proc = b.process_running;
+  const alive = proc === true || (proc == null && age != null && age <= 30);
+  if (!alive) pill = $("span", "pill stop", "Stopped");
+  else if (age == null || age > 30) pill = $("span", "pill idle", "Starting…");
   else if (!live.market) pill = $("span", "pill idle", "Running · markets closed");
   else pill = $("span", "pill run", "Running");
-  head.append(pill); el.append(head);
+  const right = $("div", "right"); right.append(pill);
+  if (proc != null) {
+    const btn = $("button", "btn " + (alive ? "halt" : "go"), alive ? "Stop" : "Start");
+    btn.type = "button"; btn.setAttribute("aria-label", (alive ? "Stop " : "Start ") + (NAMES[b.name] || b.name) + " bot");
+    btn.addEventListener("click", () => control(alive ? "stop" : "start", b.name, btn));
+    right.append(btn);
+  }
+  head.append(right); el.append(head);
 
   // current round
   const nowBox = $("div", "now");
@@ -163,12 +185,31 @@ function botPanel(b, now) {
   return el;
 }
 
+async function control(action, which, btn) {
+  const all = [...document.querySelectorAll(".btn")]; all.forEach((x) => (x.disabled = true));
+  const msg = document.getElementById("msg");
+  try {
+    const r = await fetch(`/api/${action}/${which}`, { method: "POST", headers: { "X-OilBot": "1" } });
+    if (!r.ok) throw new Error(await r.text());
+    const res = await r.json();
+    msg.textContent = Object.entries(res).map(([k, v]) => `${NAMES[k] || k}: ${v}`).join(" · ");
+    msg.className = "msg";
+  } catch (e) {
+    msg.textContent = "Couldn't " + action + ": " + e.message; msg.className = "msg err";
+  }
+  msg.hidden = false;
+  setTimeout(tick, 1200);
+}
+document.getElementById("startAll").addEventListener("click", (e) => control("start", "all", e.target));
+document.getElementById("stopAll").addEventListener("click", (e) => control("stop", "all", e.target));
+
 async function tick() {
   try {
     const r = await fetch("/api/state", { cache: "no-store" });
     const d = await r.json();
     const box = document.getElementById("bots");
     box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
+    document.getElementById("startAll").disabled = false; document.getElementById("stopAll").disabled = false;
     document.getElementById("upd").textContent = "Updated " + new Date().toLocaleTimeString() + " · refreshes every 3 s";
   } catch (e) {
     const u = document.getElementById("upd"); u.textContent = "Can't reach the dashboard server. Is live_server.py running?"; u.className = "sub err";
