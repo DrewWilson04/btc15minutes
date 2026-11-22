@@ -512,11 +512,19 @@ function botChecks(b, d) {
   const err = L.last_error, errAge = err ? ago(err.at, d.now) : null;
   if (okAge == null || okAge > 30) C.push(["bad", "Can't reach Kalshi" + (err ? ": " + err.msg : "") + ". Check the internet connection."]);
   else C.push(["ok", "Connected to Kalshi (checked " + agoText(okAge) + ")"]);
-  if (err && errAge != null && errAge < 600 && okAge != null && okAge <= 30) C.push(["info", `Last error ${agoText(errAge)}: ${err.msg}`]);
+  if (err && errAge != null && errAge < 600 && okAge != null && okAge <= 30) {
+    const rejected = errAge < 120 && /insufficient_balance|insufficient_shard_balance|invalid_order|invalid_price|invalid_order_size|permission_denied|TRADING_BLOCKED/.test(err.msg);
+    C.push([rejected ? "bad" : "info", (rejected ? "Kalshi is REJECTING orders " : "Last error ") + `${agoText(errAge)}: ${err.msg}`]);
+  }
   if (L.mode === "live") {
     if (L.halted) C.push(["bad", "HALTED: " + L.halted + ". Orders cancelled. Press Stop, then Start once fixed."]);
     if (L.balance != null) C.push(["ok", `Signed in · Kalshi balance $${Number(L.balance).toFixed(2)}`]);
     else C.push(["bad", "Not signed in to Kalshi (no balance). Check your keys."]);
+    if (L.shard_balance != null) {
+      const sb = Number(L.shard_balance), need = Number(L.need || 0);
+      if (sb < need) C.push(["bad", `Only $${sb.toFixed(2)} on the oil shard (shard ${L.shard}), so Kalshi rejects orders. Move money to shard ${L.shard} (Commodities) at kalshi.com/account/exchange-indexes.`]);
+      else C.push(["ok", `Oil shard ${L.shard} balance $${sb.toFixed(2)} (orders draw from this)`]);
+    }
   }
   if (!L.market) C.push(["wait", "No round open right now. Oil rounds run Sunday 6 pm to Friday midnight ET."]);
   else {

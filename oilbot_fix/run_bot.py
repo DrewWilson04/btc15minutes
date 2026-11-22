@@ -34,10 +34,10 @@ if __name__ == "__main__":
     os.chdir(HERE); sys.path.insert(0, HERE)
     cfg = load_config()
     if len(sys.argv) > 1 and sys.argv[1] == "--check-keys":
-        from live_maker import check_keys
+        from live_maker import check_keys, shard_report
         try:
-            bal, _ = check_keys(cfg.get("environment", "prod"))
-            print(f"OK: signed in to Kalshi ({cfg.get('environment', 'prod')}). Balance ${bal:,.2f}")
+            bal, raw = check_keys(cfg.get("environment", "prod"))
+            print(f"OK: signed in to Kalshi ({cfg.get('environment', 'prod')}). Balance ${bal:,.2f}" + shard_report(raw))
         except SystemExit as e:
             print(f"FAILED: {e}"); sys.exit(1)
         except Exception as e:

@@ -9,10 +9,15 @@ Differences from paper:
   * on start: cancels any resting orders it finds for this series; on stop (SIGTERM / Ctrl-C) or a halt: cancels its order
   * halts itself (cancels and stops quoting until restarted) after repeated API errors, or when a STOP file exists
 
-Order format (Kalshi standard order, POST /portfolio/orders):
-  {"action": "buy", "side": "yes"|"no", "type": "limit", "count": <whole contracts>, "<side>_price": <cents>, "post_only": true}
-  (The newer events/orders "bid/ask" form was rejected with insufficient_balance when buying NO, so it is not used.)
+Order format (Kalshi V2, POST /portfolio/events/orders, prices on the YES side; the old /portfolio/orders writes return 410):
+  buy YES at p  ->  side "bid", price p
+  buy NO  at q  ->  side "ask", price 1 - q
+
+Exchange shards: Kalshi splits accounts into shards; oil (Commodities) is on shard 2. Website orders move money between
+shards automatically, API orders do NOT, so the oil shard must hold the money (kalshi.com/account/exchange-indexes).
+Orders auto-route by ticker; cancels must send market_ticker or they go to shard 0 and miss the order.
 """
+OIL_SHARD = 2
 import base64, datetime as dt, json, math, os, signal, subprocess, sys, time, uuid
 import httpx
 import paper_maker as pm
@@ -99,6 +104,15 @@ class AuthClient:
             return r.json() if r.content else {}
 
 
+def shard_dollars(b, shard):
+    """Available balance on one exchange shard, from GET /portfolio/balance's balance_breakdown (None if not given)."""
+    for x in b.get("balance_breakdown") or []:
+        if int(x.get("exchange_index", -1)) == shard:
+            v = x.get("balance_dollars", x.get("balance"))   # documented as a fixed-point dollar string, e.g. "12.3400"
+            return float(v) if v is not None else None
+    return None
+
+
 def balance_dollars(b):
     if "balance_dollars" in b:
         return float(b["balance_dollars"])
@@ -122,6 +136,7 @@ class LiveMaker(PaperMaker):
         self.errors = 0
         self.halted = None
         self.balance = None
+        self.shard, self.shard_balance = OIL_SHARD, None
         self.last_balance = 0
         self.stop_file = os.path.join(os.path.dirname(os.path.abspath(a.log_dir)), "STOP")
         self.fill_cursor = int(time.time()) - 60
@@ -141,16 +156,18 @@ class LiveMaker(PaperMaker):
 
     # ----- orders -----
     def place(self, side, price, count):
-        # Kalshi's standard order: "buy <side> at <cents>", whole contracts, post-only (rests, never takes).
-        cents = int(math.floor(price * 100 + 1e-6))
-        n = int(math.floor(count + 1e-9))
-        body = {"ticker": self.market["ticker"], "client_order_id": str(uuid.uuid4()), "action": "buy", "side": side,
-                "type": "limit", "count": n, f"{side}_price": cents, "post_only": True}
-        r = self.auth.call("POST", "/portfolio/orders", body=body)
+        n = int(math.floor(count + 1e-9))               # whole contracts: works on every market
+        body = {"ticker": self.market["ticker"], "client_order_id": str(uuid.uuid4()),
+                "side": "bid" if side == "yes" else "ask",
+                "price": f"{(price if side == 'yes' else 1 - price):.4f}",
+                "count": f"{n}", "time_in_force": "good_till_canceled", "post_only": True,
+                "self_trade_prevention_type": "maker", "cancel_order_on_pause": True}
+        r = self.auth.call("POST", "/portfolio/events/orders", body=body)
         count = n
         oid = r.get("order_id") or (r.get("order") or {}).get("order_id")
         self.my_orders.add(oid)
-        self.live_order = {"id": oid, "side": side, "price": price, "count": count, "placed": now().isoformat()}
+        self.live_order = {"id": oid, "ticker": self.market["ticker"], "side": side, "price": price, "count": count,
+                           "placed": now().isoformat()}
         self.log(self.f_events, {"ev": "place", "ticker": self.market["ticker"], **self.live_order, "resp": r})
         print(f"[{now():%H:%M:%S}] ORDER buy {side.upper()} {count:.2f} @ {price:.3f}  ({oid})", flush=True)
 
@@ -159,12 +176,20 @@ class LiveMaker(PaperMaker):
         if not o:
             return
         try:
-            self.auth.call("DELETE", f"/portfolio/orders/{o['id']}")
+            self.auth.call("DELETE", f"/portfolio/events/orders/{o['id']}", params={"market_ticker": o["ticker"]})
         except ApiError as e:
             if e.status not in (404, 400):              # already filled / already gone is fine
                 raise
         self.log(self.f_events, {"ev": "cancel", "why": why, **o})
         self.live_order = None
+
+    def refresh_balance(self):
+        """Total balance, plus the balance on the shard the oil markets trade on (that is what orders draw from)."""
+        b = self.auth.call("GET", "/portfolio/balance")
+        self.balance = balance_dollars(b)
+        if self.market and self.market.get("exchange_index") is not None:
+            self.shard = int(self.market["exchange_index"])
+        self.shard_balance = shard_dollars(b, self.shard)
 
     def cancel_all_resting(self, why):
         """Cancel every resting order on this series (start-up clean-up and halts)."""
@@ -175,7 +200,7 @@ class LiveMaker(PaperMaker):
         for o in d.get("orders", []):
             if o.get("ticker", "").startswith(self.a.series + "-"):
                 try:
-                    self.auth.call("DELETE", f"/portfolio/orders/{o['order_id']}")
+                    self.auth.call("DELETE", f"/portfolio/events/orders/{o['order_id']}", params={"market_ticker": o["ticker"]})
                     self.log(self.f_events, {"ev": "cancel", "why": why, "id": o["order_id"], "ticker": o["ticker"]})
                     print(f"[{now():%H:%M:%S}] cancelled leftover order {o['order_id']} on {o['ticker']}", flush=True)
                 except ApiError as e:
@@ -268,7 +293,7 @@ class LiveMaker(PaperMaker):
             return
         if time.time() - self.last_balance > 60:
             try:
-                self.balance = balance_dollars(self.auth.call("GET", "/portfolio/balance"))
+                self.refresh_balance()
             except ApiError:
                 pass
             self.last_balance = time.time()
@@ -329,7 +354,8 @@ class LiveMaker(PaperMaker):
             d = json.load(open(p))
         except (OSError, json.JSONDecodeError):
             return
-        d.update({"mode": "live", "env": self.a.env, "balance": self.balance, "halted": self.halted})
+        d.update({"mode": "live", "env": self.a.env, "balance": self.balance, "halted": self.halted,
+                  "shard": self.shard, "shard_balance": self.shard_balance, "need": self.a.side_cap})
         tmp = p + ".tmp"
         with open(tmp, "w") as f: json.dump(d, f)
         os.replace(tmp, p)
@@ -337,8 +363,11 @@ class LiveMaker(PaperMaker):
     def run(self):
         print(f"LIVE ({self.a.env}) maker on {self.a.series}: caps ${self.a.side_cap:.0f} first side / "
               f"${(self.a.flip_cap or self.a.side_cap):.0f} flip side, minutes 1-{self.a.max_minute}, max underdog {self.a.max_dog}", flush=True)
-        self.balance = balance_dollars(self.auth.call("GET", "/portfolio/balance"))
-        print(f"[{now():%H:%M:%S}] account balance ${self.balance}", flush=True)
+        self.refresh_balance()
+        print(f"[{now():%H:%M:%S}] account balance ${self.balance} (oil shard {self.shard}: ${self.shard_balance})", flush=True)
+        if self.shard_balance is not None and self.shard_balance < self.a.side_cap:
+            print(f"[{now():%H:%M:%S}] WARNING: only ${self.shard_balance:.2f} on the oil shard. Orders will be rejected "
+                  f"(insufficient_balance) until you move money to it at kalshi.com/account/exchange-indexes", flush=True)
         self.cancel_all_resting("startup")
 
         def shutdown(*_):
@@ -371,6 +400,17 @@ def check_keys(env):
     return balance_dollars(b), b
 
 
+def shard_report(b):
+    sb = shard_dollars(b, OIL_SHARD)
+    if sb is None:
+        return ""
+    msg = f" (oil markets use shard {OIL_SHARD}: ${sb:,.2f} there)"
+    if sb < 15:
+        msg += (f". NOT ENOUGH on the oil shard: move money to shard {OIL_SHARD} (Commodities) at "
+                f"kalshi.com/account/exchange-indexes or orders will be rejected")
+    return msg
+
+
 def test_order(env, series="KXBRENT15M"):
     """Places ONE tiny real order (buy 1 NO at 1 cent, post-only, so it rests and almost surely never fills),
     then cancels it straight away. Proves Kalshi accepts the bot's orders. Worst case cost: $0.01."""
@@ -381,10 +421,11 @@ def test_order(env, series="KXBRENT15M"):
     if not ms:
         return "no open market right now (oil rounds run Sunday 6 pm to Friday midnight ET), try again then"
     t = ms[0]["ticker"]
-    body = {"ticker": t, "client_order_id": str(uuid.uuid4()), "action": "buy", "side": "no", "type": "limit",
-            "count": 1, "no_price": 1, "post_only": True}
-    r = c.call("POST", "/portfolio/orders", body=body)
-    oid = r.get("order_id") or (r.get("order") or {}).get("order_id")
-    status = (r.get("order") or {}).get("status")
-    c.call("DELETE", f"/portfolio/orders/{oid}")
-    return f"placed and cancelled a 1-contract test order on {t} (status was {status})"
+    # buy 1 NO at 1 cent == sell 1 YES at 99 cents (post-only, so it rests far from the market)
+    body = {"ticker": t, "client_order_id": str(uuid.uuid4()), "side": "ask", "price": "0.9900", "count": "1",
+            "time_in_force": "good_till_canceled", "post_only": True, "self_trade_prevention_type": "maker",
+            "cancel_order_on_pause": True}
+    r = c.call("POST", "/portfolio/events/orders", body=body)
+    oid = r.get("order_id")
+    c.call("DELETE", f"/portfolio/events/orders/{oid}", params={"market_ticker": t})
+    return f"placed and cancelled a 1-contract test order on {t} (remaining {r.get('remaining_count')}, filled {r.get('fill_count')})"

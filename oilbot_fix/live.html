@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oil Bot Live</title>
+<style>
+/* Layout: one panel per bot; inside, "now" (current round) on top, then totals, fills and rounds */
+:root{--bg:#0e1110;--panel:#171b19;--panel2:#1d2220;--fg:#e6eae8;--muted:#98a29d;--line:#2a312e;--good:#4cc285;--bad:#ef6e63;--warn:#e0a341;
+--accent:#6c9be0;--bar:#262c29;--ink:#0b0f0d;--c0:#f0a35e;--c1:#6c9be0;color-scheme:dark;
+--sans:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans)}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
+h1{font-size:22px;margin:0} .sub{color:var(--muted);font-size:13px}
+.bots{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}
+@media (max-width:480px){.bots{grid-template-columns:1fr}}
+.bot{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.bothead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bothead h2{margin:0;font-size:18px}
+.pill{font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.pill.run{color:var(--good)} .pill.idle{color:var(--muted)} .pill.stop{color:var(--bad)}
+.now{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.now .row{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline}
+.label{color:var(--muted);font-size:12px}
+.val{font-variant-numeric:tabular-nums;font-weight:600}
+.big{font-size:22px}
+.progress{height:6px;background:var(--bar);border-radius:3px;overflow:hidden}
+.progress>div{height:100%;background:var(--accent)}
+.caps{display:grid;grid-template-columns:auto 1fr auto;gap:6px 10px;align-items:center;font-size:12px}
+.cap{height:8px;background:var(--bar);border-radius:4px;overflow:hidden}.cap>div{height:100%}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:480px){.grid4{grid-template-columns:repeat(2,1fr)}}
+.stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.health{background:var(--panel);border:1px solid var(--line);border-left:6px solid var(--muted);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.health.ok{border-left-color:var(--good)} .health.wait{border-left-color:var(--warn)} .health.bad{border-left-color:var(--bad)}
+.hhead{display:flex;align-items:center;gap:12px}
+.hdot{width:16px;height:16px;border-radius:50%;background:var(--muted);flex:none}
+.health.ok .hdot{background:var(--good);box-shadow:0 0 0 4px rgba(76,194,133,.2)}
+.health.wait .hdot{background:var(--warn);box-shadow:0 0 0 4px rgba(224,163,65,.2)}
+.health.bad .hdot{background:var(--bad);box-shadow:0 0 0 4px rgba(239,110,99,.25)}
+.htitle{font-size:18px;font-weight:700}
+.hgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px}
+.hbot{border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+.hbot h4{margin:0 0 4px;font-size:13px}
+.chk{display:grid;grid-template-columns:18px 1fr;gap:2px 6px;font-size:13px;align-items:baseline}
+.chk>span{min-width:0;overflow-wrap:anywhere}
+.chk .i{font-weight:700;text-align:center}.chk .i.ok{color:var(--good)}.chk .i.bad{color:var(--bad)}.chk .i.wait{color:var(--warn)}.chk .i.info{color:var(--muted)}
+h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600}
+.feed{max-height:220px;overflow-y:auto;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:8px}
+.feed div{padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed .empty{color:var(--muted);font-family:var(--sans)}
+table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+th,td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+.tw{overflow-x:auto;max-height:260px;overflow-y:auto}
+svg.spark{width:100%;height:60px;display:block}
+.err{color:var(--bad)}
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn{font:inherit;font-size:13px;font-weight:600;padding:6px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.btn:hover{border-color:var(--muted)} .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.go{background:var(--good);border-color:var(--good);color:var(--ink)} .btn.halt{background:var(--bad);border-color:var(--bad);color:var(--ink)}
+.right{display:flex;gap:8px;align-items:center}
+.msg{font-size:12px;color:var(--muted)}
+.mode{border-radius:10px;padding:10px 14px;font-weight:600;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.mode.paper{background:var(--panel);border:1px solid var(--line);color:var(--muted)}
+.mode.live{background:var(--bad);color:var(--ink)} .mode.demo{background:var(--warn);color:var(--ink)}
+.halt{background:var(--bad);color:var(--ink);border-radius:8px;padding:8px 10px;font-size:13px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.rangebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.rangebar label{color:var(--muted);font-size:13px}
+.rangebar input[type=date]{font:inherit;font-size:13px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
+.chip{font:inherit;font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--fg);cursor:pointer}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--ink);font-weight:600}
+.chip:focus-visible,.rangebar input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sumrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.chartwrap{position:relative;min-height:280px}
+.chartwrap svg text{fill:var(--muted);font-size:11px;font-family:var(--sans)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);list-style:none;margin:0;padding:0}
+.legend li{display:flex;align-items:center;gap:6px}.sw{width:14px;height:3px;border-radius:2px;display:inline-block}
+.tip{position:absolute;pointer-events:none;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap;z-index:3}
+.dl{display:flex;flex-wrap:wrap;gap:8px}
+.charthead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.charthead h3{margin:0}.seg{display:flex;gap:6px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.modal .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;max-width:360px;width:100%;display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center}
+.qr{background:#fff;padding:12px;border-radius:10px}
+.qr img,.qr canvas{display:block}
+.small{font-size:12px;color:var(--muted);word-break:break-all}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Oil bot live</h1>
+    <div class="ctl">
+      <button class="btn go" id="startAll" type="button">Start both</button>
+      <button class="btn halt" id="stopAll" type="button">Stop both</button>
+      <span class="sub" id="upd">Connecting…</span>
+    </div>
+  </header>
+  <div class="mode paper" id="mode">Loading…</div>
+  <section class="health" id="health" aria-live="polite">
+    <div class="hhead"><span class="hdot" id="hdot"></span><div><div class="htitle" id="htitle">Checking…</div><div class="sub" id="hsub"></div></div></div>
+    <div class="hgrid" id="hgrid"></div>
+  </section>
+  <div class="msg" id="msg" hidden></div>
+  <section class="card" id="history">
+    <div class="rangebar">
+      <label for="from">Show from</label>
+      <input type="date" id="from">
+      <button class="chip" type="button" data-days="0">Today</button>
+      <button class="chip" type="button" data-days="7">7 days</button>
+      <button class="chip" type="button" data-days="30">30 days</button>
+      <button class="chip" type="button" data-days="all">All</button>
+      <span class="sub" id="rangeLabel"></span>
+    </div>
+    <div class="sumrow" id="sumrow"></div>
+    <div>
+      <div class="charthead">
+        <h3>Running profit in this period</h3>
+        <div class="seg" role="group" aria-label="Chart style">
+          <button class="chip" type="button" data-style="line" aria-pressed="true">Line</button>
+          <button class="chip" type="button" data-style="candles" aria-pressed="false">Candles</button>
+        </div>
+      </div>
+      <ul class="legend" id="legLine"><li><span class="sw" style="background:var(--c0)"></span>Brent</li><li><span class="sw" style="background:var(--c1)"></span>WTI</li><li><span class="sw" style="background:var(--good)"></span>Both</li></ul>
+      <ul class="legend" id="legCandle" hidden><li><span class="sw" style="background:var(--good);height:10px;width:8px"></span>Profit rose</li><li><span class="sw" style="background:var(--bad);height:10px;width:8px"></span>Profit fell</li><li id="candleUnit">Each candle: 1 hour, both bots combined</li></ul>
+      <div class="chartwrap" id="chart"></div>
+    </div>
+    <div class="dl">
+      <a class="btn" id="csv" href="/export.csv">Download rounds (CSV)</a>
+      <button class="btn" id="png" type="button">Save chart (PNG)</button>
+      <button class="btn" id="qrbtn" type="button">QR code for your phone</button>
+    </div>
+  </section>
+  <div class="bots" id="bots"></div>
+  <div class="modal" id="qrmodal" hidden>
+    <div class="box" role="dialog" aria-modal="true" aria-labelledby="qrtitle">
+      <h2 id="qrtitle" style="margin:0;font-size:17px">Open on your phone</h2>
+      <div class="qr" id="qr"></div>
+      <div class="small" id="qrurl"></div>
+      <div class="small" id="qrnote">Scan with your phone's camera. Your phone must be on the same Wi-Fi as this Mac. The page opens with the same dates, and you can download the CSV from there.</div>
+      <button class="btn" id="qrclose" type="button">Close</button>
+    </div>
+  </div>
+</div>
+<script>
+const $ = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
+const money = (v, d = 2) => (v < 0 ? "−$" : v > 0 ? "+$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const usd = (v) => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cls = (v) => (v > 0 ? "pos" : v < 0 ? "neg" : "");
+const etTime = (iso) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+const roundLabel = (tk) => { const m = tk && tk.match(/(\d{2})(\d{2})-\d{2}$/); if (!m) return tk || "–"; let h = +m[1]; const ap = h >= 12 ? "pm" : "am"; h = ((h + 11) % 12) + 1; return `${h}:${m[2]} ${ap}`; };
+const NAMES = { brent: "Brent", wti: "WTI" };
+
+function stat(label, value, c) { const s = $("div", "stat"); s.append($("div", "label", label), $("div", "val " + (c || ""), value)); return s; }
+
+function spark(values) {
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "spark"); svg.setAttribute("viewBox", "0 0 300 60"); svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "Running profit by settled round");
+  if (values.length < 2) return svg;
+  const lo = Math.min(0, ...values), hi = Math.max(0, ...values), sp = hi - lo || 1;
+  const x = (i) => (i / (values.length - 1)) * 300, y = (v) => 56 - ((v - lo) / sp) * 52;
+  const zero = document.createElementNS(ns, "line");
+  Object.entries({ x1: 0, x2: 300, y1: y(0), y2: y(0), stroke: "var(--line)", "vector-effect": "non-scaling-stroke" }).forEach(([k, v]) => zero.setAttribute(k, v));
+  const pl = document.createElementNS(ns, "polyline");
+  pl.setAttribute("points", values.map((v, i) => `${x(i)},${y(v)}`).join(" "));
+  pl.setAttribute("fill", "none"); pl.setAttribute("stroke", values[values.length - 1] >= 0 ? "var(--good)" : "var(--bad)");
+  pl.setAttribute("stroke-width", "2"); pl.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(zero, pl); return svg;
+}
+
+function botPanel(b, now) {
+  const el = $("section", "bot");
+  const live = b.live, age = b.heartbeat_age_s;
+  const head = $("div", "bothead");
+  head.append($("h2", null, NAMES[b.name] || b.name));
+  let pill;
+  const proc = b.process_running;
+  const alive = proc === true || (proc == null && age != null && age <= 30);
+  if (!alive) pill = $("span", "pill stop", "Stopped");
+  else if (age == null || age > 30) pill = $("span", "pill idle", "Starting…");
+  else if (!live.market) pill = $("span", "pill idle", "Running · markets closed");
+  else pill = $("span", "pill run", "Running");
+  const right = $("div", "right"); right.append(pill);
+  if (proc != null && LOCAL) {
+    const btn = $("button", "btn " + (alive ? "halt" : "go"), alive ? "Stop" : "Start");
+    btn.type = "button"; btn.setAttribute("aria-label", (alive ? "Stop " : "Start ") + (NAMES[b.name] || b.name) + " bot");
+    btn.addEventListener("click", () => control(alive ? "stop" : "start", b.name, btn));
+    right.append(btn);
+  }
+  head.append(right); el.append(head);
+
+  // current round
+  const nowBox = $("div", "now");
+  if (live && live.market) {
+    const open = new Date(live.open), close = new Date(live.close), t = new Date(now);
+    const left = Math.max(0, (close - t) / 1000), frac = Math.min(1, Math.max(0, (t - open) / (close - open)));
+    const minute = Math.min(15, Math.floor((t - open) / 60000) + 1);
+    const r1 = $("div", "row");
+    const a = $("div"); a.append($("div", "label", "Current round"), $("div", "val big", "ends " + roundLabel(live.market)));
+    const bb = $("div"); bb.append($("div", "label", "Minute / time left"), $("div", "val big", `${minute} · ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}`));
+    r1.append(a, bb); nowBox.append(r1);
+    const pr = $("div", "progress"); const fill = $("div"); fill.style.width = (frac * 100).toFixed(1) + "%"; pr.append(fill); nowBox.append(pr);
+    const r2 = $("div", "row");
+    if (live.book) {
+      const y = live.book.yes_bid, ya = live.book.yes_ask;
+      const p1 = $("div"); p1.append($("span", "label", "YES "), $("span", "val", `${Math.round(y * 100)}¢ / ${Math.round(ya * 100)}¢`)); r2.append(p1);
+      const p2 = $("div"); p2.append($("span", "label", "NO "), $("span", "val", `${Math.round((1 - ya) * 100)}¢ / ${Math.round((1 - y) * 100)}¢`)); r2.append(p2);
+    }
+    const o = live.order;
+    const p3 = $("div"); p3.append($("span", "label", "Bot's order "));
+    if (o) p3.append($("span", "val", `buy ${o.side.toUpperCase()} @ ${Math.round(o.price * 100)}¢ · ${Math.round(o.queue_ahead)} ahead in line · ${Math.round(o.filled)} filled here`));
+    else p3.append($("span", "val", minute > live.rules.max_minute ? `none (stops buying after minute ${live.rules.max_minute})` : "none right now (no favorite inside the rules, or cap reached)"));
+    r2.append(p3); nowBox.append(r2);
+    // per-side money vs caps
+    const w = live.window || { side_risk: { yes: 0, no: 0 } }, first = w.first_side;
+    const caps = $("div", "caps");
+    for (const side of ["yes", "no"]) {
+      const used = (w.side_risk || {})[side] || 0, cap = !first || first === side ? live.rules.side_cap : (live.rules.flip_cap || live.rules.side_cap);
+      caps.append($("span", "label", `${side.toUpperCase()} put in` + (first ? (first === side ? " (first side)" : " (flip side)") : "")));
+      const bar = $("div", "cap"); const f = $("div"); f.style.width = cap ? Math.min(100, (used / cap) * 100) + "%" : "0"; f.style.background = side === "yes" ? "var(--accent)" : "var(--warn)"; bar.append(f);
+      caps.append(bar, $("span", "val", `${usd(used)}${cap ? " / $" + cap : ""}`));
+    }
+    nowBox.append(caps);
+  } else {
+    nowBox.append($("div", "label", age == null || age > 30 ? "No live status yet. Start the bot to see the current round here." : "No round open. Kalshi's oil rounds run Sunday 6 pm to Friday midnight ET."));
+  }
+  el.append(nowBox);
+
+  if (live && live.halted) el.insertBefore($("div", "halt", "Halted: " + live.halted + ". Its orders were cancelled. Press Start to resume."), nowBox);
+  // totals
+  const g = $("div", "grid4");
+  g.append(stat("Today (settled)", money(b.today.net), cls(b.today.net)), stat(FROM ? "Selected period" : "All rounds", money(b.range.net), cls(b.range.net)),
+    stat("Won / lost", `${b.range.won} / ${b.range.lost}`), stat("Money put in", usd(b.range.put_in)));
+  if (live && live.mode === "live" && live.balance != null) g.append(stat("Kalshi balance", usd(live.balance)));
+  el.append(g);
+  const ud = $("div", "row"); ud.style.display = "flex"; ud.style.gap = "18px"; ud.style.fontSize = "12px";
+  ud.append($("span", "pos", "Up rounds " + money(b.range.up)), $("span", "neg", "Down rounds " + money(b.range.down)),
+    $("span", "label", b.pending.length ? `${b.pending.length} round(s) waiting to settle` : ""));
+  el.append(ud);
+  const sp = $("div"); sp.append($("h3", null, "Running profit by settled round")); sp.append(spark(b.equity.map((p) => p.y))); el.append(sp);
+
+  // fills feed
+  const ff = $("div"); ff.append($("h3", null, "Latest fills"));
+  const feed = $("div", "feed");
+  if (!b.recent_fills.length) feed.append($("div", "empty", "No fills yet."));
+  for (const f of b.recent_fills) feed.append($("div", null, `${etTime(f.trade_time)}  round ${roundLabel(f.ticker)}  min ${f.minute}  bought ${f.side.toUpperCase()} ${f.qty < 1 ? f.qty.toFixed(1) : Math.round(f.qty)} @ ${Math.round(f.price * 100)}¢  = ${usd(f.qty * f.price)}`));
+  ff.append(feed); el.append(ff);
+
+  // settled rounds
+  const rr = $("div"); rr.append($("h3", null, FROM ? "Settled rounds in this period" : "Settled rounds"));
+  const tw = $("div", "tw"); const t = $("table");
+  const thr = $("tr"); ["Round ends", "Result", "Contracts", "Put in", "P&L"].forEach((h) => thr.append($("th", null, h)));
+  const thead = $("thead"); thead.append(thr); t.append(thead);
+  const tb = $("tbody");
+  if (!b.recent_rounds.length) { const tr = $("tr"); const td = $("td", "label", "None yet."); td.colSpan = 5; tr.append(td); tb.append(tr); }
+  for (const r of b.recent_rounds) {
+    const tr = $("tr");
+    tr.append($("td", null, roundLabel(r.ticker)), $("td", null, r.result.toUpperCase()), $("td", null, String(Math.round(r.contracts))), $("td", null, usd(r.put_in)), $("td", cls(r.pnl), money(r.pnl)));
+    tb.append(tr);
+  }
+  t.append(tb); tw.append(t); rr.append(tw); el.append(rr);
+  return el;
+}
+
+const LOCAL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+if (!LOCAL) document.querySelectorAll("#startAll,#stopAll").forEach((b) => (b.hidden = true));
+const qs = new URLSearchParams(location.search);
+let FROM = /^\d{4}-\d{2}-\d{2}$/.test(qs.get("from") || "") ? qs.get("from") : null;
+let LAST = null;
+const etDate = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+function setFrom(v) {
+  FROM = v || null;
+  const u = new URL(location.href); if (FROM) u.searchParams.set("from", FROM); else u.searchParams.delete("from");
+  history.replaceState(null, "", u);
+  document.getElementById("from").value = FROM || "";
+  document.getElementById("csv").href = "/export.csv" + (FROM ? "?from=" + FROM : "");
+  const today = etDate(new Date());
+  document.querySelectorAll(".chip[data-days]").forEach((c) => {
+    const d = c.dataset.days; let match = false;
+    if (d === "all") match = !FROM;
+    else { const t = new Date(); t.setDate(t.getDate() - Number(d)); match = FROM === etDate(t); }
+    c.setAttribute("aria-pressed", String(match));
+  });
+  tick();
+}
+document.getElementById("from").addEventListener("change", (e) => setFrom(e.target.value));
+document.querySelectorAll(".chip[data-days]").forEach((c) => c.addEventListener("click", () => {
+  if (c.dataset.days === "all") return setFrom(null);
+  const t = new Date(); t.setDate(t.getDate() - Number(c.dataset.days)); setFrom(etDate(t));
+}));
+
+let STYLE = "line";
+try { STYLE = localStorage.getItem("oilbot_chart_style") === "candles" ? "candles" : "line"; } catch (e) {}
+document.querySelectorAll("[data-style]").forEach((c) => c.addEventListener("click", () => {
+  STYLE = c.dataset.style; try { localStorage.setItem("oilbot_chart_style", STYLE); } catch (e) {}
+  syncStyle(); if (LAST) drawChart(LAST.bots);
+}));
+function syncStyle() {
+  document.querySelectorAll("[data-style]").forEach((c) => c.setAttribute("aria-pressed", String(c.dataset.style === STYLE)));
+  document.getElementById("legLine").hidden = STYLE !== "line"; document.getElementById("legCandle").hidden = STYLE !== "candles";
+}
+syncStyle();
+
+function drawCandles(host, bots) {
+  const steps = bots.flatMap((b) => b.equity.map((p) => ({ t: new Date(p.t), step: p.step }))).sort((a, b) => a.t - b.t);
+  if (!steps.length) { host.append($("div", "label", "No settled rounds in this period yet.")); return; }
+  const span = steps[steps.length - 1].t - steps[0].t, daily = span > 3 * 86400e3;
+  document.getElementById("candleUnit").textContent = `Each candle: 1 ${daily ? "day" : "hour"} (ET), both bots combined`;
+  const keyOf = (t) => { const o = { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }; if (!daily) o.hour = "2-digit"; return t.toLocaleString("en-CA", { ...o, hourCycle: "h23" }); };
+  const C = []; let run = 0;
+  for (const s of steps) {
+    const k = keyOf(s.t); let c = C[C.length - 1];
+    if (!c || c.k !== k) { c = { k, t: s.t, o: run, h: run, l: run, c: run, n: 0 }; C.push(c); }
+    run += s.step; c.c = run; c.h = Math.max(c.h, run); c.l = Math.min(c.l, run); c.n++;
+  }
+  const W = Math.max(300, host.clientWidth), H = 280, m = { t: 12, r: 14, b: 30, l: 66 };
+  const lo = Math.min(0, ...C.map((c) => c.l)), hi = Math.max(0, ...C.map((c) => c.h)), pad = (hi - lo) * 0.08 || 10, y0 = lo - pad, y1 = hi + pad;
+  const slot = (W - m.l - m.r) / C.length, bw = Math.max(2, Math.min(28, slot * 0.65));
+  const X = (i) => m.l + slot * (i + 0.5), Y = (v) => m.t + (H - m.t - m.b) * (1 - (v - y0) / (y1 - y0));
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%"); svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `Candlestick chart of combined running profit, one candle per ${daily ? "day" : "hour"}`);
+  const mk = (t, a) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
+  mk("rect", { x: 0, y: 0, width: W, height: H, fill: "var(--panel)" });
+  const raw = (y1 - y0) / 5, mag = Math.pow(10, Math.floor(Math.log10(raw))), st = [1, 2, 5, 10].map((f) => f * mag).find((v) => v >= raw);
+  for (let v = Math.ceil(y0 / st) * st; v <= y1; v += st) {
+    mk("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: Math.abs(v) < 1e-9 ? "var(--muted)" : "var(--line)" });
+    mk("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }).textContent = money(v, 0);
+  }
+  const every = Math.max(1, Math.ceil(C.length / Math.max(2, Math.floor((W - m.l) / 90))));
+  const fmt = daily ? { month: "short", day: "numeric", timeZone: "America/New_York" } : { weekday: "short", hour: "numeric", timeZone: "America/New_York" };
+  C.forEach((c, i) => {
+    const up = c.c >= c.o, col = up ? "var(--good)" : "var(--bad)";
+    mk("line", { x1: X(i), x2: X(i), y1: Y(c.h), y2: Y(c.l), stroke: col, "stroke-width": 1.2 });
+    const top = Y(Math.max(c.o, c.c)), hgt = Math.max(1.5, Math.abs(Y(c.o) - Y(c.c)));
+    mk("rect", { x: X(i) - bw / 2, y: top, width: bw, height: hgt, fill: col, rx: 1 });
+    if (i % every === 0) mk("text", { x: X(i), y: H - 8, "text-anchor": "middle" }).textContent = c.t.toLocaleString("en-US", fmt);
+  });
+  host.append(svg);
+  const tip = $("div", "tip"); tip.hidden = true; host.append(tip);
+  svg.addEventListener("pointermove", (e) => {
+    const r = svg.getBoundingClientRect(), px = ((e.clientX - r.left) * W) / r.width;
+    const i = Math.max(0, Math.min(C.length - 1, Math.floor((px - m.l) / slot))), c = C[i];
+    const when = c.t.toLocaleString("en-US", daily ? { weekday: "short", month: "short", day: "numeric", timeZone: "America/New_York" } : { weekday: "short", month: "short", day: "numeric", hour: "numeric", timeZone: "America/New_York" });
+    tip.replaceChildren($("div", "label", when + " ET · " + c.n + " round" + (c.n === 1 ? "" : "s")),
+      $("div", null, `Open ${money(c.o)} · Close ${money(c.c)}`), $("div", null, `High ${money(c.h)} · Low ${money(c.l)}`),
+      $("div", cls(c.c - c.o), `Change ${money(c.c - c.o)}`));
+    tip.hidden = false; const bwid = host.clientWidth; let left = e.clientX - host.getBoundingClientRect().left + 12; if (left + tip.offsetWidth > bwid) left -= tip.offsetWidth + 24;
+    tip.style.left = Math.max(0, left) + "px"; tip.style.top = "6px";
+  });
+  svg.addEventListener("pointerleave", () => (tip.hidden = true));
+}
+
+function drawChart(bots) {
+  const host = document.getElementById("chart"); host.replaceChildren();
+  if (STYLE === "candles") return drawCandles(host, bots);
+  const series = [["brent", "var(--c0)", "Brent"], ["wti", "var(--c1)", "WTI"]]
+    .map(([n, c, label]) => { const b = bots.find((x) => x.name === n); return b ? { label, color: c, pts: b.equity.map((p) => ({ t: new Date(p.t), y: p.y, step: p.step })) } : null; })
+    .filter((s) => s && s.pts.length);
+  if (!series.length) { host.append($("div", "label", "No settled rounds in this period yet.")); return; }
+  // combined running total across bots, in time order
+  const all = series.flatMap((s) => s.pts.map((p) => ({ t: p.t, step: p.step }))).sort((a, b) => a.t - b.t);
+  let run = 0; series.push({ label: "Both", color: "var(--good)", pts: all.map((p) => ({ t: p.t, y: (run += p.step), step: p.step })), wide: true });
+  const W = Math.max(300, host.clientWidth), H = 280, m = { t: 12, r: 14, b: 30, l: 66 };
+  const ts = series.flatMap((s) => s.pts.map((p) => +p.t)), ys = series.flatMap((s) => s.pts.map((p) => p.y));
+  let t0 = Math.min(...ts), t1 = Math.max(...ts); if (t1 === t0) t1 = t0 + 3600e3;
+  const lo = Math.min(0, ...ys), hi = Math.max(0, ...ys), pad = (hi - lo) * 0.08 || 10, y0 = lo - pad, y1 = hi + pad;
+  const X = (t) => m.l + (W - m.l - m.r) * ((t - t0) / (t1 - t0)), Y = (v) => m.t + (H - m.t - m.b) * (1 - (v - y0) / (y1 - y0));
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("width", "100%"); svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", "Running profit in the selected period for Brent, WTI and both combined");
+  const mk = (t, a) => { const e = document.createElementNS(ns, t); for (const k in a) e.setAttribute(k, a[k]); svg.append(e); return e; };
+  mk("rect", { x: 0, y: 0, width: W, height: H, fill: "var(--panel)" });
+  const raw = (y1 - y0) / 5, mag = Math.pow(10, Math.floor(Math.log10(raw))), st = [1, 2, 5, 10].map((f) => f * mag).find((v) => v >= raw);
+  for (let v = Math.ceil(y0 / st) * st; v <= y1; v += st) {
+    mk("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: Math.abs(v) < 1e-9 ? "var(--muted)" : "var(--line)" });
+    mk("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }).textContent = money(v, 0);
+  }
+  const span = t1 - t0, n = Math.max(2, Math.floor((W - m.l) / 110));
+  const fmt = span > 2 * 86400e3 ? { month: "short", day: "numeric", timeZone: "America/New_York" } : { weekday: "short", hour: "numeric", timeZone: "America/New_York" };
+  for (let i = 0; i <= n; i++) { const t = t0 + (span * i) / n; mk("text", { x: X(t), y: H - 8, "text-anchor": i === 0 ? "start" : i === n ? "end" : "middle" }).textContent = new Date(t).toLocaleString("en-US", fmt); }
+  for (const s of series) {
+    mk("polyline", { points: s.pts.map((p) => `${X(+p.t)},${Y(p.y)}`).join(" "), fill: "none", stroke: s.color, "stroke-width": s.wide ? 2.5 : 1.6, "stroke-linejoin": "round", opacity: s.wide ? 1 : 0.85 });
+    const l = s.pts[s.pts.length - 1]; mk("circle", { cx: X(+l.t), cy: Y(l.y), r: 3.5, fill: s.color });
+  }
+  host.append(svg);
+  const tip = $("div", "tip"); tip.hidden = true; host.append(tip);
+  svg.addEventListener("pointermove", (e) => {
+    const r = svg.getBoundingClientRect(), px = ((e.clientX - r.left) * W) / r.width, t = t0 + ((px - m.l) / (W - m.l - m.r)) * (t1 - t0);
+    tip.replaceChildren($("div", "label", new Date(t).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: "America/New_York" }) + " ET"));
+    for (const s of series) { let last = null; for (const p of s.pts) { if (+p.t <= t) last = p; else break; } tip.append($("div", null, `${s.label}: ${money(last ? last.y : 0)}`)); }
+    tip.hidden = false; const bw = host.clientWidth; let left = e.clientX - host.getBoundingClientRect().left + 12; if (left + tip.offsetWidth > bw) left -= tip.offsetWidth + 24;
+    tip.style.left = Math.max(0, left) + "px"; tip.style.top = "6px";
+  });
+  svg.addEventListener("pointerleave", () => (tip.hidden = true));
+}
+
+function drawSummary(d) {
+  const row = document.getElementById("sumrow"); row.replaceChildren();
+  const tot = { net: 0, put_in: 0, won: 0, lost: 0, up: 0, down: 0, rounds: 0 };
+  for (const b of d.bots) for (const k in tot) tot[k] += b.range[k];
+  row.append(stat("Profit (both bots)", money(tot.net), cls(tot.net)), stat("Rounds won / lost", `${tot.won} / ${tot.lost}`),
+    stat("Money put in", usd(tot.put_in)), stat("Return on money put in", tot.put_in ? (tot.net >= 0 ? "+" : "") + (100 * tot.net / tot.put_in).toFixed(1) + "%" : "–", cls(tot.net)),
+    stat("Up rounds total", money(tot.up), "pos"), stat("Down rounds total", money(tot.down), "neg"));
+  const first = d.bots.map((b) => b.first_date).filter(Boolean).sort()[0];
+  document.getElementById("rangeLabel").textContent = FROM ? `${FROM} to now (ET)` : first ? `All rounds since ${first}` : "";
+  if (!document.getElementById("from").max) document.getElementById("from").max = etDate(new Date());
+  if (first) document.getElementById("from").min = first;
+}
+
+document.getElementById("png").addEventListener("click", () => {
+  const svg = document.querySelector("#chart svg"); if (!svg) return;
+  const cs = getComputedStyle(document.documentElement);
+  let xml = new XMLSerializer().serializeToString(svg).replace(/var\(--([a-z0-9]+)\)/g, (_, v) => cs.getPropertyValue("--" + v).trim());
+  const fam = cs.getPropertyValue("--sans").replace(/"/g, "'").trim();
+  xml = xml.replace("<svg", `<svg style="font-family:${fam}" `).replace(/<text /g, `<text fill="${cs.getPropertyValue("--muted").trim()}" font-size="11" `);
+  const vb = svg.viewBox.baseVal, img = new Image(), scale = 2;
+  xml = xml.replace('width="100%"', `width="${vb.width}" height="${vb.height}"`);
+  img.onload = () => {
+    const c = document.createElement("canvas"); c.width = vb.width * scale; c.height = (vb.height + 40) * scale;
+    const g = c.getContext("2d"); g.scale(scale, scale); g.fillStyle = cs.getPropertyValue("--panel").trim(); g.fillRect(0, 0, vb.width, vb.height + 40);
+    g.fillStyle = cs.getPropertyValue("--fg").trim(); g.font = "600 14px " + cs.getPropertyValue("--sans");
+    g.fillText("Oil bot running profit · " + (FROM ? FROM + " to now" : "all rounds"), 12, 24);
+    let lx = vb.width - 12; g.font = "12px " + cs.getPropertyValue("--sans"); g.textAlign = "right";
+    for (const [lab, v] of (STYLE === "candles" ? [["Fell", "--bad"], ["Rose", "--good"]] : [["Both", "--good"], ["WTI", "--c1"], ["Brent", "--c0"]])) {
+      g.fillStyle = cs.getPropertyValue(v).trim(); g.fillText(lab, lx, 24); lx -= g.measureText(lab).width + 8; g.fillRect(lx - 14, 19, 14, 3); lx -= 26;
+    }
+    g.drawImage(img, 0, 40, vb.width, vb.height);
+    const a = document.createElement("a"); a.download = `oilbot_chart_${FROM || "all"}.png`; a.href = c.toDataURL("image/png"); a.click();
+  };
+  img.onerror = () => { const m = document.getElementById("msg"); m.textContent = "Couldn't save the chart image."; m.className = "msg err"; m.hidden = false; };
+  img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+});
+
+const qrModal = document.getElementById("qrmodal");
+document.getElementById("qrbtn").addEventListener("click", async () => {
+  let base = location.origin;
+  try { const r = await (await fetch("/api/lanip")).json(); if (LOCAL) base = `http://${r.ip}:${r.port}`;
+        window.__OB_NOT_ON_NETWORK = !r.listening_on_network;
+        document.getElementById("qrnote").textContent = r.listening_on_network
+          ? "Scan with your phone's camera. Your phone must be on the same Wi-Fi as this Mac. The page opens with the same dates, and you can download the CSV there."
+          : "The dashboard is set to this Mac only, so a phone can't open it. Restart it without --host 127.0.0.1 to allow phones on your Wi-Fi."; } catch (e) {}
+  const url = base + "/" + (FROM ? "?from=" + FROM : "");
+  document.getElementById("qrurl").textContent = url;
+  const box = document.getElementById("qr"); box.replaceChildren();
+  if (window.__OB_NOT_ON_NETWORK) {
+    box.hidden = true; document.getElementById("qrurl").textContent = "";
+    document.getElementById("qrnote").textContent = "This dashboard only accepts connections from its own machine (for example a cloud server viewed through an SSH tunnel), so a phone can't open it with a QR code. Use Download rounds (CSV) or Save chart (PNG) instead.";
+    qrModal.hidden = false; document.getElementById("qrclose").focus(); return;
+  }
+  box.hidden = false;
+  const img = new Image(); img.width = 220; img.height = 220; img.alt = "QR code linking to " + url;
+  img.onerror = () => box.replaceChildren($("div", "small", "Couldn't make the QR code. Type the address below on your phone instead."));
+  img.src = "/api/qr.svg?text=" + encodeURIComponent(url); box.append(img);
+  qrModal.hidden = false; document.getElementById("qrclose").focus();
+});
+document.getElementById("qrclose").addEventListener("click", () => (qrModal.hidden = true));
+qrModal.addEventListener("click", (e) => { if (e.target === qrModal) qrModal.hidden = true; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") qrModal.hidden = true; });
+new ResizeObserver(() => LAST && drawChart(LAST.bots)).observe(document.getElementById("chart"));
+
+async function control(action, which, btn) {
+  const all = [...document.querySelectorAll(".btn")]; all.forEach((x) => (x.disabled = true));
+  const msg = document.getElementById("msg");
+  try {
+    const r = await fetch(`/api/${action}/${which}`, { method: "POST", headers: { "X-OilBot": "1" } });
+    if (!r.ok) throw new Error(await r.text());
+    const res = await r.json();
+    msg.textContent = Object.entries(res).map(([k, v]) => `${NAMES[k] || k}: ${v}`).join(" · ");
+    msg.className = "msg";
+  } catch (e) {
+    msg.textContent = "Couldn't " + action + ": " + e.message; msg.className = "msg err";
+  }
+  msg.hidden = false;
+  setTimeout(tick, 1200);
+}
+document.getElementById("startAll").addEventListener("click", (e) => control("start", "all", e.target));
+document.getElementById("stopAll").addEventListener("click", (e) => control("stop", "all", e.target));
+
+function ago(iso, now) {
+  if (!iso) return null;
+  return Math.max(0, (new Date(now) - new Date(iso)) / 1000);
+}
+function agoText(s) {
+  if (s == null) return "never";
+  if (s < 90) return Math.round(s) + " s ago";
+  if (s < 5400) return Math.round(s / 60) + " min ago";
+  return (s / 3600).toFixed(1) + " h ago";
+}
+// Checks for one bot. Each check: [state, text], state = ok | bad | wait | info.
+function botChecks(b, d) {
+  const L = b.live || {}, C = [], hb = b.heartbeat_age_s;
+  const wantLive = d.mode === "live";
+  if (b.process_running === false) { C.push(["bad", "Bot program is stopped. Press Start."]); return C; }
+  C.push(["ok", "Bot program is running"]);
+  if (hb == null) { C.push(["wait", "Starting up… (no status yet)"]); return C; }
+  if (hb > 30) { C.push(["bad", `Bot stopped responding (last update ${agoText(hb)}). Press Stop, then Start.`]); return C; }
+  C.push(["ok", `Responding (last update ${agoText(hb)})`]);
+  const runMode = L.mode === "live" ? (L.env === "demo" ? "LIVE on demo" : "LIVE real money") : "PAPER";
+  const cfgMode = wantLive ? (d.env === "demo" ? "LIVE on demo" : "LIVE real money") : "PAPER";
+  if (runMode !== cfgMode) C.push(["bad", `Running in ${runMode} but set to ${cfgMode}. Press Stop, then Start.`]);
+  else C.push(["ok", `Mode: ${runMode}`]);
+  const okAge = ago(L.last_ok, d.now);
+  const err = L.last_error, errAge = err ? ago(err.at, d.now) : null;
+  if (okAge == null || okAge > 30) C.push(["bad", "Can't reach Kalshi" + (err ? ": " + err.msg : "") + ". Check the internet connection."]);
+  else C.push(["ok", "Connected to Kalshi (checked " + agoText(okAge) + ")"]);
+  if (err && errAge != null && errAge < 600 && okAge != null && okAge <= 30) {
+    const rejected = errAge < 120 && /insufficient_balance|insufficient_shard_balance|invalid_order|invalid_price|invalid_order_size|permission_denied|TRADING_BLOCKED/.test(err.msg);
+    C.push([rejected ? "bad" : "info", (rejected ? "Kalshi is REJECTING orders " : "Last error ") + `${agoText(errAge)}: ${err.msg}`]);
+  }
+  if (L.mode === "live") {
+    if (L.halted) C.push(["bad", "HALTED: " + L.halted + ". Orders cancelled. Press Stop, then Start once fixed."]);
+    if (L.balance != null) C.push(["ok", `Signed in · Kalshi balance $${Number(L.balance).toFixed(2)}`]);
+    else C.push(["bad", "Not signed in to Kalshi (no balance). Check your keys."]);
+    if (L.shard_balance != null) {
+      const sb = Number(L.shard_balance), need = Number(L.need || 0);
+      if (sb < need) C.push(["bad", `Only $${sb.toFixed(2)} on the oil shard (shard ${L.shard}), so Kalshi rejects orders. Move money to shard ${L.shard} (Commodities) at kalshi.com/account/exchange-indexes.`]);
+      else C.push(["ok", `Oil shard ${L.shard} balance $${sb.toFixed(2)} (orders draw from this)`]);
+    }
+  }
+  if (!L.market) C.push(["wait", "No round open right now. Oil rounds run Sunday 6 pm to Friday midnight ET."]);
+  else {
+    const min = L.book ? L.book.minute : null;
+    let t = `Watching round ending ${roundLabel(L.market)}` + (min ? ` · minute ${min}` : "");
+    if (L.order) t += ` · order: buy ${L.order.side.toUpperCase()} @ ${Math.round(L.order.price * 100)}¢`;
+    else t += " · no order right now (outside the rules or cap reached)";
+    C.push(["ok", t]);
+  }
+  const lf = (b.recent_fills || [])[0];
+  if (lf && lf.ts) C.push(["info", `Last fill ${agoText(ago(lf.ts, d.now))}: ${String(lf.side || "").toUpperCase()} ${Number(lf.qty).toFixed(1)} @ ${Math.round(lf.price * 100)}¢`]);
+  return C;
+}
+function drawHealth(d, err) {
+  const box = document.getElementById("health"), T = document.getElementById("htitle"), S = document.getElementById("hsub"), G = document.getElementById("hgrid");
+  if (err) {
+    box.className = "health bad"; T.textContent = "NOT WORKING: the page can't reach the bot program";
+    S.textContent = "Double-click Oil Bot and choose 1 (Start). Nothing on this page is up to date."; G.replaceChildren(); return;
+  }
+  const per = d.bots.map((b) => ({ b, C: botChecks(b, d) }));
+  const bad = per.some((p) => p.C.some((c) => c[0] === "bad"));
+  const starting = per.some((p) => p.C.some((c) => c[0] === "wait" && /Starting/.test(c[1])));
+  const anyOpen = d.bots.some((b) => b.live && b.live.market);
+  if (bad) { box.className = "health bad"; T.textContent = "PROBLEM: something needs attention"; S.textContent = "See the red ✗ below."; }
+  else if (starting) { box.className = "health wait"; T.textContent = "Starting up…"; S.textContent = "Give it a few seconds."; }
+  else if (!anyOpen) { box.className = "health wait"; T.textContent = "WORKING: waiting for markets to open"; S.textContent = "Everything is connected. Oil rounds run Sunday 6 pm to Friday midnight ET."; }
+  else { box.className = "health ok"; T.textContent = d.mode === "live" ? "WORKING: trading live" : "WORKING: paper trading"; S.textContent = "Everything checks out. Checked every 3 seconds."; }
+  G.replaceChildren(...per.map(({ b, C }) => {
+    const card = $("div", "hbot"); card.append($("h4", null, NAMES[b.name] || b.name));
+    const g = $("div", "chk");
+    for (const [st, tx] of C) g.append($("span", "i " + st, { ok: "✓", bad: "✗", wait: "…", info: "·" }[st]), $("span", null, tx));
+    card.append(g); return card;
+  }));
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/state" + (FROM ? "?from=" + FROM : ""), { cache: "no-store" });
+    const d = await r.json(); LAST = d;
+    drawHealth(d); drawSummary(d); drawChart(d.bots);
+    const box = document.getElementById("bots");
+    box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
+    const mode = document.getElementById("mode");
+    const caps = `Caps: $${d.caps.first} first side · $${d.caps.flip} flip side per round`;
+    if (d.mode === "live" && d.env === "demo") { mode.className = "mode demo"; mode.textContent = "LIVE ON KALSHI DEMO (fake money) · " + caps; }
+    else if (d.mode === "live") { mode.className = "mode live"; mode.textContent = "LIVE · REAL MONEY · real orders on Kalshi · " + caps; }
+    else { mode.className = "mode paper"; mode.textContent = "PAPER TRADING · simulated fills, no real money · " + caps; }
+    document.getElementById("startAll").disabled = false; document.getElementById("stopAll").disabled = false;
+    document.getElementById("upd").textContent = "Updated " + new Date().toLocaleTimeString() + " · refreshes every 3 s";
+  } catch (e) {
+    drawHealth(null, true);
+    const u = document.getElementById("upd"); u.textContent = "Can't reach the dashboard server. Is live_server.py running?"; u.className = "sub err";
+  }
+}
+setFrom(FROM); setInterval(tick, 3000);
+</script>
+</body>
+</html>
