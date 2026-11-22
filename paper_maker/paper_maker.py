@@ -148,6 +148,27 @@ class PaperMaker:
 
     # ---------- main step ----------
     def step(self):
+        self.book = None
+        try:
+            self._step()
+        finally:
+            self.write_live()
+
+    def write_live(self):
+        """Small status file for the local dashboard (logs/<name>/live.json)."""
+        m, w = self.market, self.win
+        live = {"ts": now().isoformat(), "series": self.a.series, "market": m["ticker"] if m else None,
+                "open": m["open_time"] if m else None, "close": m["close_time"] if m else None,
+                "book": self.book, "order": self.order,
+                "window": {"at_risk": round(w["at_risk"], 2), "side_risk": w.get("side_risk"), "first_side": w.get("first_side"),
+                           "contracts": round(sum(f["qty"] for f in w["fills"]), 2)} if w else None,
+                "rules": {"max_minute": self.a.max_minute, "max_dog": self.a.max_dog, "side_cap": self.a.side_cap,
+                          "flip_cap": self.a.flip_cap, "per_level": self.a.per_level}}
+        tmp = os.path.join(self.a.log_dir, "live.json.tmp")
+        with open(tmp, "w") as f: json.dump(live, f)
+        os.replace(tmp, os.path.join(self.a.log_dir, "live.json"))
+
+    def _step(self):
         m = self.current_market()
         if not m:
             return
@@ -159,6 +180,7 @@ class PaperMaker:
             self.order = None; return
         yb, nb = max(yes), max(no)
         mid = (yb + (1 - nb)) / 2
+        self.book = {"yes_bid": yb, "yes_ask": round(1 - nb, 4), "minute": minute}
         fav = "yes" if mid >= 0.5 else "no"
         price = yb if fav == "yes" else nb
         depth = (yes if fav == "yes" else no)[price]

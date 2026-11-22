@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Oil Bot Live</title>
+<style>
+/* Layout: one panel per bot; inside, "now" (current round) on top, then totals, fills and rounds */
+:root{--bg:#f4f6f5;--panel:#fff;--fg:#1a1e1c;--muted:#5f6863;--line:#dde2df;--good:#1d7a4b;--bad:#b4362c;--warn:#a4670b;--accent:#2f63a8;--bar:#e7ebe9;
+--sans:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:ui-monospace,"SF Mono",Menlo,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#111413;--panel:#1a1e1c;--fg:#e6eae8;--muted:#9aa49f;--line:#2c3330;--good:#4cc285;--bad:#ef6e63;--warn:#e0a341;--accent:#6c9be0;--bar:#262c29}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 var(--sans)}
+.wrap{max-width:1200px;margin:0 auto;padding:20px 16px 40px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px}
+h1{font-size:22px;margin:0} .sub{color:var(--muted);font-size:13px}
+.bots{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:16px}
+@media (max-width:480px){.bots{grid-template-columns:1fr}}
+.bot{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.bothead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.bothead h2{margin:0;font-size:18px}
+.pill{font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid currentColor;white-space:nowrap}
+.pill.run{color:var(--good)} .pill.idle{color:var(--muted)} .pill.stop{color:var(--bad)}
+.now{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.now .row{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline}
+.label{color:var(--muted);font-size:12px}
+.val{font-variant-numeric:tabular-nums;font-weight:600}
+.big{font-size:22px}
+.progress{height:6px;background:var(--bar);border-radius:3px;overflow:hidden}
+.progress>div{height:100%;background:var(--accent)}
+.caps{display:grid;grid-template-columns:auto 1fr auto;gap:6px 10px;align-items:center;font-size:12px}
+.cap{height:8px;background:var(--bar);border-radius:4px;overflow:hidden}.cap>div{height:100%}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:480px){.grid4{grid-template-columns:repeat(2,1fr)}}
+.stat{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+h3{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600}
+.feed{max-height:220px;overflow-y:auto;font-family:var(--mono);font-size:12px;border:1px solid var(--line);border-radius:8px}
+.feed div{padding:4px 8px;border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed .empty{color:var(--muted);font-family:var(--sans)}
+table{width:100%;border-collapse:collapse;font-size:12px;font-variant-numeric:tabular-nums}
+th,td{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}
+th{color:var(--muted);font-weight:500}
+.tw{overflow-x:auto;max-height:260px;overflow-y:auto}
+svg.spark{width:100%;height:60px;display:block}
+.err{color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Oil bot live <span class="sub">(paper trading, no real money)</span></h1>
+    <span class="sub" id="upd">Connecting…</span>
+  </header>
+  <div class="bots" id="bots"></div>
+</div>
+<script>
+const $ = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt != null) e.textContent = txt; return e; };
+const money = (v, d = 2) => (v < 0 ? "−$" : v > 0 ? "+$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const usd = (v) => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cls = (v) => (v > 0 ? "pos" : v < 0 ? "neg" : "");
+const etTime = (iso) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" });
+const roundLabel = (tk) => { const m = tk && tk.match(/(\d{2})(\d{2})-\d{2}$/); if (!m) return tk || "–"; let h = +m[1]; const ap = h >= 12 ? "pm" : "am"; h = ((h + 11) % 12) + 1; return `${h}:${m[2]} ${ap}`; };
+const NAMES = { brent: "Brent", wti: "WTI" };
+
+function stat(label, value, c) { const s = $("div", "stat"); s.append($("div", "label", label), $("div", "val " + (c || ""), value)); return s; }
+
+function spark(values) {
+  const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "spark"); svg.setAttribute("viewBox", "0 0 300 60"); svg.setAttribute("preserveAspectRatio", "none");
+  svg.setAttribute("role", "img"); svg.setAttribute("aria-label", "Running profit by settled round");
+  if (values.length < 2) return svg;
+  const lo = Math.min(0, ...values), hi = Math.max(0, ...values), sp = hi - lo || 1;
+  const x = (i) => (i / (values.length - 1)) * 300, y = (v) => 56 - ((v - lo) / sp) * 52;
+  const zero = document.createElementNS(ns, "line");
+  Object.entries({ x1: 0, x2: 300, y1: y(0), y2: y(0), stroke: "var(--line)", "vector-effect": "non-scaling-stroke" }).forEach(([k, v]) => zero.setAttribute(k, v));
+  const pl = document.createElementNS(ns, "polyline");
+  pl.setAttribute("points", values.map((v, i) => `${x(i)},${y(v)}`).join(" "));
+  pl.setAttribute("fill", "none"); pl.setAttribute("stroke", values[values.length - 1] >= 0 ? "var(--good)" : "var(--bad)");
+  pl.setAttribute("stroke-width", "2"); pl.setAttribute("vector-effect", "non-scaling-stroke");
+  svg.append(zero, pl); return svg;
+}
+
+function botPanel(b, now) {
+  const el = $("section", "bot");
+  const live = b.live, age = b.heartbeat_age_s;
+  const head = $("div", "bothead");
+  head.append($("h2", null, NAMES[b.name] || b.name));
+  let pill;
+  if (age == null || age > 30) pill = $("span", "pill stop", "Bot not running");
+  else if (!live.market) pill = $("span", "pill idle", "Running · markets closed");
+  else pill = $("span", "pill run", "Running");
+  head.append(pill); el.append(head);
+
+  // current round
+  const nowBox = $("div", "now");
+  if (live && live.market) {
+    const open = new Date(live.open), close = new Date(live.close), t = new Date(now);
+    const left = Math.max(0, (close - t) / 1000), frac = Math.min(1, Math.max(0, (t - open) / (close - open)));
+    const minute = Math.min(15, Math.floor((t - open) / 60000) + 1);
+    const r1 = $("div", "row");
+    const a = $("div"); a.append($("div", "label", "Current round"), $("div", "val big", "ends " + roundLabel(live.market)));
+    const bb = $("div"); bb.append($("div", "label", "Minute / time left"), $("div", "val big", `${minute} · ${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, "0")}`));
+    r1.append(a, bb); nowBox.append(r1);
+    const pr = $("div", "progress"); const fill = $("div"); fill.style.width = (frac * 100).toFixed(1) + "%"; pr.append(fill); nowBox.append(pr);
+    const r2 = $("div", "row");
+    if (live.book) {
+      const y = live.book.yes_bid, ya = live.book.yes_ask;
+      const p1 = $("div"); p1.append($("span", "label", "YES "), $("span", "val", `${Math.round(y * 100)}¢ / ${Math.round(ya * 100)}¢`)); r2.append(p1);
+      const p2 = $("div"); p2.append($("span", "label", "NO "), $("span", "val", `${Math.round((1 - ya) * 100)}¢ / ${Math.round((1 - y) * 100)}¢`)); r2.append(p2);
+    }
+    const o = live.order;
+    const p3 = $("div"); p3.append($("span", "label", "Bot's order "));
+    if (o) p3.append($("span", "val", `buy ${o.side.toUpperCase()} @ ${Math.round(o.price * 100)}¢ · ${Math.round(o.queue_ahead)} ahead in line · ${Math.round(o.filled)} filled here`));
+    else p3.append($("span", "val", minute > live.rules.max_minute ? `none (stops buying after minute ${live.rules.max_minute})` : "none right now (no favorite inside the rules, or cap reached)"));
+    r2.append(p3); nowBox.append(r2);
+    // per-side money vs caps
+    const w = live.window || { side_risk: { yes: 0, no: 0 } }, first = w.first_side;
+    const caps = $("div", "caps");
+    for (const side of ["yes", "no"]) {
+      const used = (w.side_risk || {})[side] || 0, cap = !first || first === side ? live.rules.side_cap : (live.rules.flip_cap || live.rules.side_cap);
+      caps.append($("span", "label", `${side.toUpperCase()} put in` + (first ? (first === side ? " (first side)" : " (flip side)") : "")));
+      const bar = $("div", "cap"); const f = $("div"); f.style.width = cap ? Math.min(100, (used / cap) * 100) + "%" : "0"; f.style.background = side === "yes" ? "var(--accent)" : "var(--warn)"; bar.append(f);
+      caps.append(bar, $("span", "val", `${usd(used)}${cap ? " / $" + cap : ""}`));
+    }
+    nowBox.append(caps);
+  } else {
+    nowBox.append($("div", "label", age == null || age > 30 ? "No live status yet. Start the bot to see the current round here." : "No round open. Kalshi's oil rounds run Sunday 6 pm to Friday midnight ET."));
+  }
+  el.append(nowBox);
+
+  // totals
+  const g = $("div", "grid4");
+  g.append(stat("Today (settled)", money(b.today.net), cls(b.today.net)), stat("All rounds", money(b.all.net), cls(b.all.net)),
+    stat("Won / lost", `${b.all.won} / ${b.all.lost}`), stat("Money put in", usd(b.all.put_in)));
+  el.append(g);
+  const ud = $("div", "row"); ud.style.display = "flex"; ud.style.gap = "18px"; ud.style.fontSize = "12px";
+  ud.append($("span", "pos", "Up rounds " + money(b.all.up)), $("span", "neg", "Down rounds " + money(b.all.down)),
+    $("span", "label", b.pending.length ? `${b.pending.length} round(s) waiting to settle` : ""));
+  el.append(ud);
+  const sp = $("div"); sp.append($("h3", null, "Running profit by settled round")); sp.append(spark(b.equity)); el.append(sp);
+
+  // fills feed
+  const ff = $("div"); ff.append($("h3", null, "Latest fills"));
+  const feed = $("div", "feed");
+  if (!b.recent_fills.length) feed.append($("div", "empty", "No fills yet."));
+  for (const f of b.recent_fills) feed.append($("div", null, `${etTime(f.trade_time)}  round ${roundLabel(f.ticker)}  min ${f.minute}  bought ${f.side.toUpperCase()} ${f.qty < 1 ? f.qty.toFixed(1) : Math.round(f.qty)} @ ${Math.round(f.price * 100)}¢  = ${usd(f.qty * f.price)}`));
+  ff.append(feed); el.append(ff);
+
+  // settled rounds
+  const rr = $("div"); rr.append($("h3", null, "Settled rounds"));
+  const tw = $("div", "tw"); const t = $("table");
+  const thr = $("tr"); ["Round ends", "Result", "Contracts", "Put in", "P&L"].forEach((h) => thr.append($("th", null, h)));
+  const thead = $("thead"); thead.append(thr); t.append(thead);
+  const tb = $("tbody");
+  if (!b.recent_rounds.length) { const tr = $("tr"); const td = $("td", "label", "None yet."); td.colSpan = 5; tr.append(td); tb.append(tr); }
+  for (const r of b.recent_rounds) {
+    const tr = $("tr");
+    tr.append($("td", null, roundLabel(r.ticker)), $("td", null, r.result.toUpperCase()), $("td", null, String(Math.round(r.contracts))), $("td", null, usd(r.put_in)), $("td", cls(r.pnl), money(r.pnl)));
+    tb.append(tr);
+  }
+  t.append(tb); tw.append(t); rr.append(tw); el.append(rr);
+  return el;
+}
+
+async function tick() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    const d = await r.json();
+    const box = document.getElementById("bots");
+    box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
+    document.getElementById("upd").textContent = "Updated " + new Date().toLocaleTimeString() + " · refreshes every 3 s";
+  } catch (e) {
+    const u = document.getElementById("upd"); u.textContent = "Can't reach the dashboard server. Is live_server.py running?"; u.className = "sub err";
+  }
+}
+tick(); setInterval(tick, 3000);
+</script>
+</body>
+</html>

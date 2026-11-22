@@ -3,3 +3,5 @@ logs/
 site/
 .last_pushed
 push.out
+run/
+.venv/

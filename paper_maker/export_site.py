@@ -63,7 +63,8 @@ def main():
     tmp = os.path.join(a.out, "stats.json.tmp")
     json.dump(data, open(tmp, "w"), indent=1); os.replace(tmp, os.path.join(a.out, "stats.json"))
     shutil.copy(os.path.join(HERE, "dashboard.html"), os.path.join(a.out, "index.html"))
-    print(f"wrote {a.out}/index.html + stats.json ({', '.join(f'{b['name']} ${b['total']:+.2f}' for b in data['bots'])})")
+    totals = ", ".join("%s $%+.2f" % (b["name"], b["total"]) for b in data["bots"])
+    print("wrote %s/index.html + stats.json (%s)" % (a.out, totals))
 
 
 if __name__ == "__main__":
