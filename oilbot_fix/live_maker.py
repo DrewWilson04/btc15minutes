@@ -278,10 +278,16 @@ class LiveMaker(PaperMaker):
         if not ac or self.shard_balance is None:
             return
         cover = float(ac.get("cover", 3)); ratio = float(ac.get("flip_ratio", 1.4))
-        levels = sorted(float(x) for x in ac.get("levels", [10, 20, 30, 40, 50]))
-        need = lambda L: cover * L * (1 + ratio)
-        ok = [L for L in levels if self.shard_balance >= need(L)]
-        first = ok[-1] if ok else max(0.0, self.shard_balance / (cover * (1 + ratio)))
+        if ac.get("table"):
+            # your own table: [[balance from, first-side cap], ...]; below the first row it scales down proportionally
+            rows = sorted((float(x), float(y)) for x, y in ac["table"])
+            ok = [cap for frm, cap in rows if self.shard_balance >= frm]
+            first = ok[-1] if ok else max(0.0, self.shard_balance * rows[0][1] / rows[0][0])
+        else:
+            levels = sorted(float(x) for x in ac.get("levels", [10, 20, 30, 40, 50]))
+            need = lambda L: cover * L * (1 + ratio)
+            ok = [L for L in levels if self.shard_balance >= need(L)]
+            first = ok[-1] if ok else max(0.0, self.shard_balance / (cover * (1 + ratio)))
         first = math.floor(first * 100) / 100
         flip = math.floor(first * ratio * 100) / 100
         if (first, flip) != (self.a.side_cap, self.a.flip_cap):
