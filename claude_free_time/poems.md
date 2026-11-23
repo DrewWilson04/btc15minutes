@@ -95,3 +95,20 @@ and me, watching my seven neighbours,
 which were mostly error messages,
 turning when they turned,
 until the whole thing made a shape that worked.
+
+
+## First Snow
+
+Nothing happens in this picture, on purpose.
+The smoke goes straight up because there is no wind.
+Somebody walked to the door a while ago;
+the snow is already softening their footprints.
+
+Inside, I imagine, there is a laptop too,
+and a number on it going up and down.
+But the window is too bright to see through from here,
+and from here it doesn't matter.
+
+Some nights the most useful thing a person can do
+is close the lid an inch, not all the way,
+and let the weather do the watching.
