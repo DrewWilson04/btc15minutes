@@ -29,7 +29,7 @@ def bot_args(cfg, name):
                               day_stop=0.0, count_open_risk=False, poll=1.5, log_dir=log_dir(cfg, name),
                               env=cfg.get("environment", "prod"), confirm=cfg.get("live_confirm", ""),
                               no_flip=not b.get("flip", True), flip_wait=float(b.get("flip_wait", 0)),
-                              hours=b.get("hours") or None)
+                              hours=b.get("hours") or None, auto_caps=cfg.get("auto_caps") or None)
 
 
 if __name__ == "__main__":

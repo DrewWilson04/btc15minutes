@@ -262,8 +262,33 @@ class LiveMaker(PaperMaker):
         before = self.win["ticker"] if self.win else None
         m = super().current_market()
         if m and self.win and self.win["ticker"] != before:
+            try:
+                self.refresh_balance()                  # fresh balance at the start of every round...
+            except ApiError:
+                pass
+            self.apply_auto_caps()                      # ...so the caps for this round fit the account
             self.restore_window_fills()
         return m
+
+    def apply_auto_caps(self):
+        """FIRST-SIDE cap by LEVEL from the oil-shard balance (flip cap = first x flip_ratio). A level unlocks only when the
+        shard holds `cover` x what a round at that level can use (first + flip). Below the lowest level the caps scale
+        down smoothly. Caps change only between rounds."""
+        ac = getattr(self.a, "auto_caps", None)
+        if not ac or self.shard_balance is None:
+            return
+        cover = float(ac.get("cover", 3)); ratio = float(ac.get("flip_ratio", 1.4))
+        levels = sorted(float(x) for x in ac.get("levels", [10, 20, 30, 40, 50]))
+        need = lambda L: cover * L * (1 + ratio)
+        ok = [L for L in levels if self.shard_balance >= need(L)]
+        first = ok[-1] if ok else max(0.0, self.shard_balance / (cover * (1 + ratio)))
+        first = math.floor(first * 100) / 100
+        flip = math.floor(first * ratio * 100) / 100
+        if (first, flip) != (self.a.side_cap, self.a.flip_cap):
+            print(f"[{now():%H:%M:%S}] AUTO CAPS: oil shard ${self.shard_balance:.2f} -> ${first:.2f} first side / "
+                  f"${flip:.2f} flip side" + ("" if ok else " (below the lowest level)"), flush=True)
+            self.log(self.f_events, {"ev": "auto_caps", "shard_balance": self.shard_balance, "first": first, "flip": flip})
+        self.a.side_cap, self.a.flip_cap = first, flip
 
     def restore_window_fills(self):
         """After a restart mid-round, count the real fills already logged for this round toward its caps."""
@@ -369,6 +394,7 @@ class LiveMaker(PaperMaker):
         print(f"LIVE ({self.a.env}) maker on {self.a.series}: caps ${self.a.side_cap:.0f} first side / "
               f"{flip}, minutes 1-{self.a.max_minute}, max underdog {self.a.max_dog}", flush=True)
         self.refresh_balance()
+        self.apply_auto_caps()
         print(f"[{now():%H:%M:%S}] account balance ${self.balance} (oil shard {self.shard}: ${self.shard_balance})", flush=True)
         if self.shard_balance is not None and self.shard_balance < self.a.side_cap:
             print(f"[{now():%H:%M:%S}] WARNING: only ${self.shard_balance:.2f} on the oil shard. Orders will be rejected "

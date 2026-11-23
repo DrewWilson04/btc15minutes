@@ -209,7 +209,8 @@ class PaperMaker:
                           "flip_cap": self.a.flip_cap, "per_level": self.a.per_level,
                           "no_flip": bool(getattr(self.a, "no_flip", False)),
                           "flip_wait": float(getattr(self.a, "flip_wait", 0) or 0),
-                          "hours": getattr(self.a, "hours", None) or None, "in_hours": self.in_hours()}}
+                          "hours": getattr(self.a, "hours", None) or None, "in_hours": self.in_hours(),
+                          "auto_caps": bool(getattr(self.a, "auto_caps", None))}}
         tmp = os.path.join(self.a.log_dir, "live.json.tmp")
         with open(tmp, "w") as f: json.dump(live, f)
         os.replace(tmp, os.path.join(self.a.log_dir, "live.json"))

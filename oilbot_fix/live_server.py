@@ -237,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
             cfg = run_bot.load_config()
             names = shown_names()
             body = {"now": dt.datetime.now(UTC).isoformat(), "mode": cfg.get("mode", "paper"), "env": cfg.get("environment", "prod"),
-                    "caps": {"first": cfg.get("first_side_cap"), "flip": cfg.get("flip_side_cap"),
+                    "caps": {"first": cfg.get("first_side_cap"), "flip": cfg.get("flip_side_cap"), "auto": cfg.get("auto_caps"),
                              "flip_off": [n for n in names if not cfg["bots"].get(n, {}).get("flip", True)],
                              "hours": {n: cfg["bots"].get(n, {}).get("hours") for n in names if cfg["bots"].get(n, {}).get("hours")},
                              "flip_wait": {n: cfg["bots"].get(n, {}).get("flip_wait", 0) for n in names

@@ -596,7 +596,10 @@ async function tick() {
     box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
     const mode = document.getElementById("mode");
     const off = d.caps.flip_off || [], allOff = off.length && off.length === d.bots.length;
-    const caps = `Caps: $${d.caps.first} first side · ` + (allOff ? "flip side OFF" : `$${d.caps.flip} flip side per round`) +
+    const lr = (d.bots.find((b) => b.live && b.live.rules && b.live.rules.auto_caps) || {}).live;
+    const capFirst = lr ? Number(lr.rules.side_cap).toFixed(2) : d.caps.first, capFlip = lr ? Number(lr.rules.flip_cap).toFixed(2) : d.caps.flip;
+    const autoTxt = d.caps.auto ? ` (AUTO from your Exchange 2 balance, first side up to $${Math.max(...(d.caps.auto.levels || [50]))})` : "";
+    const caps = `Caps: $${capFirst} first side · ` + (allOff ? "flip side OFF" : `$${capFlip} flip side per round`) + autoTxt +
       (off.length && !allOff ? ` (flip OFF for ${off.map((n) => NAMES[n] || n).join(", ")})` : "") +
       Object.entries(d.caps.flip_wait || {}).map(([n, s]) => ` · ${NAMES[n] || n} flips only after ${s}s hold`).join("") +
       Object.entries(d.caps.hours || {}).map(([n, h]) => ` · ${NAMES[n] || n} trades ${hoursText(h)} ET`).join("");
