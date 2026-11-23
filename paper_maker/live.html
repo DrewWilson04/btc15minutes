@@ -313,7 +313,7 @@ function drawCandles(host, bots) {
   const steps = bots.flatMap((b) => b.equity.map((p) => ({ t: new Date(p.t), step: p.step }))).sort((a, b) => a.t - b.t);
   if (!steps.length) { host.append($("div", "label", "No settled rounds in this period yet.")); return; }
   const span = steps[steps.length - 1].t - steps[0].t, daily = span > 3 * 86400e3;
-  document.getElementById("candleUnit").textContent = `Each candle: 1 ${daily ? "day" : "hour"} (ET), both bots combined`;
+  document.getElementById("candleUnit").textContent = `Each candle: 1 ${daily ? "day" : "hour"} (ET)` + (bots.length > 1 ? ", both bots combined" : ` · ${bots.map((b) => NAMES[b.name] || b.name).join("")}`);
   const keyOf = (t) => { const o = { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit" }; if (!daily) o.hour = "2-digit"; return t.toLocaleString("en-CA", { ...o, hourCycle: "h23" }); };
   const C = []; let run = 0;
   for (const s of steps) {
@@ -368,7 +368,7 @@ function drawChart(bots) {
   if (!series.length) { host.append($("div", "label", "No settled rounds in this period yet.")); return; }
   // combined running total across bots, in time order
   const all = series.flatMap((s) => s.pts.map((p) => ({ t: p.t, step: p.step }))).sort((a, b) => a.t - b.t);
-  let run = 0; series.push({ label: "Both", color: "var(--good)", pts: all.map((p) => ({ t: p.t, y: (run += p.step), step: p.step })), wide: true });
+  let run = 0; if (series.length > 1) series.push({ label: "Both", color: "var(--good)", pts: all.map((p) => ({ t: p.t, y: (run += p.step), step: p.step })), wide: true });
   const W = Math.max(300, host.clientWidth), H = 280, m = { t: 12, r: 14, b: 30, l: 66 };
   const ts = series.flatMap((s) => s.pts.map((p) => +p.t)), ys = series.flatMap((s) => s.pts.map((p) => p.y));
   let t0 = Math.min(...ts), t1 = Math.max(...ts); if (t1 === t0) t1 = t0 + 3600e3;
@@ -407,7 +407,7 @@ function drawSummary(d) {
   const row = document.getElementById("sumrow"); row.replaceChildren();
   const tot = { net: 0, put_in: 0, won: 0, lost: 0, up: 0, down: 0, rounds: 0 };
   for (const b of d.bots) for (const k in tot) tot[k] += b.range[k];
-  row.append(stat("Profit (both bots)", money(tot.net), cls(tot.net)), stat("Rounds won / lost", `${tot.won} / ${tot.lost}`),
+  row.append(stat(d.bots.length === 1 ? `Profit (${NAMES[d.bots[0].name] || d.bots[0].name})` : "Profit (both bots)", money(tot.net), cls(tot.net)), stat("Rounds won / lost", `${tot.won} / ${tot.lost}`),
     stat("Money put in", usd(tot.put_in)), stat("Return on money put in", tot.put_in ? (tot.net >= 0 ? "+" : "") + (100 * tot.net / tot.put_in).toFixed(1) + "%" : "–", cls(tot.net)),
     stat("Up rounds total", money(tot.up), "pos"), stat("Down rounds total", money(tot.down), "neg"));
   const first = d.bots.map((b) => b.first_date).filter(Boolean).sort()[0];
@@ -430,7 +430,9 @@ document.getElementById("png").addEventListener("click", () => {
     g.fillStyle = cs.getPropertyValue("--fg").trim(); g.font = "600 14px " + cs.getPropertyValue("--sans");
     g.fillText("Oil bot running profit · " + (FROM ? FROM + " to now" : "all rounds"), 12, 24);
     let lx = vb.width - 12; g.font = "12px " + cs.getPropertyValue("--sans"); g.textAlign = "right";
-    for (const [lab, v] of (STYLE === "candles" ? [["Fell", "--bad"], ["Rose", "--good"]] : [["Both", "--good"], ["WTI", "--c1"], ["Brent", "--c0"]])) {
+    const shown = (LAST ? LAST.bots : []).map((b) => b.name);
+    const lineLeg = shown.length === 1 ? [[NAMES[shown[0]] || shown[0], shown[0] === "brent" ? "--c0" : "--c1"]] : [["Both", "--good"], ["WTI", "--c1"], ["Brent", "--c0"]];
+    for (const [lab, v] of (STYLE === "candles" ? [["Fell", "--bad"], ["Rose", "--good"]] : lineLeg)) {
       g.fillStyle = cs.getPropertyValue(v).trim(); g.fillText(lab, lx, 24); lx -= g.measureText(lab).width + 8; g.fillRect(lx - 14, 19, 14, 3); lx -= 26;
     }
     g.drawImage(img, 0, 40, vb.width, vb.height);
@@ -566,11 +568,30 @@ function drawHealth(d, err) {
   }));
 }
 
+// When the dashboard shows only some bots: fix the legend, button labels and title, and mention hidden bots.
+function syncShown(d) {
+  const names = d.bots.map((b) => b.name), one = names.length === 1, nm = (n) => NAMES[n] || n;
+  const leg = document.getElementById("legLine");
+  leg.querySelectorAll("li").forEach((li) => {
+    const t = li.textContent.trim();
+    li.hidden = one ? !(t === nm(names[0])) : (t !== "Both" && !names.map(nm).includes(t));
+  });
+  document.getElementById("startAll").textContent = one ? `Start ${nm(names[0])}` : "Start both";
+  document.getElementById("stopAll").textContent = one ? `Stop ${nm(names[0])}` : "Stop both";
+  document.querySelector("h1").textContent = one ? `Oil bot live · ${nm(names[0])}` : "Oil bot live";
+  let note = document.getElementById("hiddenNote");
+  if (!note) { note = $("div", "sub"); note.id = "hiddenNote"; document.getElementById("health").after(note); }
+  const hid = d.hidden || [];
+  note.hidden = !hid.length;
+  note.textContent = hid.map((h) => `${nm(h.name)} is hidden from this page` + (h.running ? " and STILL RUNNING (trading in the background)" : " (stopped)")).join(" · ");
+  note.className = "sub" + (hid.some((h) => h.running) ? " err" : "");
+}
+
 async function tick() {
   try {
     const r = await fetch("/api/state" + (FROM ? "?from=" + FROM : ""), { cache: "no-store" });
     const d = await r.json(); LAST = d;
-    drawHealth(d); drawSummary(d); drawChart(d.bots);
+    drawHealth(d); drawSummary(d); drawChart(d.bots); syncShown(d);
     const box = document.getElementById("bots");
     box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
     const mode = document.getElementById("mode");

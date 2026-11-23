@@ -108,6 +108,12 @@ def bot_names():
     return [n for n, b in run_bot.load_config()["bots"].items() if b.get("enabled", True)]
 
 
+def shown_names():
+    """Bots the dashboard shows (config "dashboard": ["wti"]); all bots when not set."""
+    show = run_bot.load_config().get("dashboard")
+    return [n for n in bot_names() if not show or n in show]
+
+
 RUN = os.path.join(HERE, "run")
 
 
@@ -217,7 +223,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/export.csv"):
             cfg = run_bot.load_config(); out = io.StringIO(); wr = csv.writer(out)
             wr.writerow(["bot", "round_end_et", "settled_utc", "result", "contracts", "put_in", "pnl", "running_total"])
-            for n in bot_names():
+            for n in shown_names():
                 st = bot_state(run_bot.log_dir(cfg, n), frm); run = 0.0
                 for r in st["_ranged"]:
                     run += r["pnl"]
@@ -229,14 +235,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(data))); self.end_headers(); self.wfile.write(data); return
         if self.path.startswith("/api/state"):
             cfg = run_bot.load_config()
-            names = bot_names()
+            names = shown_names()
             body = {"now": dt.datetime.now(UTC).isoformat(), "mode": cfg.get("mode", "paper"), "env": cfg.get("environment", "prod"),
                     "caps": {"first": cfg.get("first_side_cap"), "flip": cfg.get("flip_side_cap"),
                              "flip_off": [n for n in names if not cfg["bots"].get(n, {}).get("flip", True)],
                              "hours": {n: cfg["bots"].get(n, {}).get("hours") for n in names if cfg["bots"].get(n, {}).get("hours")},
                              "flip_wait": {n: cfg["bots"].get(n, {}).get("flip_wait", 0) for n in names
                                            if cfg["bots"].get(n, {}).get("flip", True) and cfg["bots"].get(n, {}).get("flip_wait", 0)}},
-                    "from": frm, "bots": [bot_state(run_bot.log_dir(cfg, n), frm) for n in names]}
+                    "from": frm, "bots": [bot_state(run_bot.log_dir(cfg, n), frm) for n in names],
+                    "hidden": [{"name": n, "running": bot_running(n)} for n in bot_names() if n not in names]}
             for b in body["bots"]:
                 b["process_running"] = bot_running(b["name"]); b.pop("_ranged", None)
             return self._send(200, json.dumps(body), "application/json")
@@ -254,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
         parts = self.path.strip("/").split("/")          # api/start/brent | api/stop/all
         if len(parts) != 3 or parts[0] != "api" or parts[1] not in ("start", "stop") or parts[2] not in bot_names() + ["all"]:
             return self._send(404, "not found", "text/plain")
-        names = bot_names() if parts[2] == "all" else [parts[2]]
+        names = shown_names() if parts[2] == "all" else [parts[2]]
         fn = start_bot if parts[1] == "start" else stop_bot
         result = {n: fn(n) for n in names}
         self._send(200, json.dumps(result), "application/json")
