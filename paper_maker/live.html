@@ -570,7 +570,8 @@ async function tick() {
     const mode = document.getElementById("mode");
     const off = d.caps.flip_off || [], allOff = off.length && off.length === d.bots.length;
     const caps = `Caps: $${d.caps.first} first side · ` + (allOff ? "flip side OFF" : `$${d.caps.flip} flip side per round`) +
-      (off.length && !allOff ? ` (flip OFF for ${off.map((n) => NAMES[n] || n).join(", ")})` : "");
+      (off.length && !allOff ? ` (flip OFF for ${off.map((n) => NAMES[n] || n).join(", ")})` : "") +
+      Object.entries(d.caps.flip_wait || {}).map(([n, s]) => ` · ${NAMES[n] || n} flips only after ${s}s hold`).join("");
     if (d.mode === "live" && d.env === "demo") { mode.className = "mode demo"; mode.textContent = "LIVE ON KALSHI DEMO (fake money) · " + caps; }
     else if (d.mode === "live") { mode.className = "mode live"; mode.textContent = "LIVE · REAL MONEY · real orders on Kalshi · " + caps; }
     else { mode.className = "mode paper"; mode.textContent = "PAPER TRADING · simulated fills, no real money · " + caps; }

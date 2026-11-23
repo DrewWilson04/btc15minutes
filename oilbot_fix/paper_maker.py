@@ -146,6 +146,16 @@ class PaperMaker:
             return False
         if side and (self.a.side_cap or getattr(self.a, "no_flip", False)) and self.win["side_risk"][side] >= self.side_limit(side):
             return False
+        wait = float(getattr(self.a, "flip_wait", 0) or 0)
+        first = self.win["first_side"] if self.win else None
+        if side and wait and first and side != first:
+            # flip safety: only buy the other side once the flip has lasted `wait` seconds (since it was first seen
+            # inside the rules this round). A quick flip-and-flip-back never gets the flip side bought.
+            seen = self.win.get("flip_seen")
+            if not seen:
+                self.win["flip_seen"] = seen = now().isoformat()
+            if (now() - ts(seen)).total_seconds() < wait:
+                return False
         return True
 
     # ---------- main step ----------
@@ -174,7 +184,8 @@ class PaperMaker:
                 "last_error": getattr(self, "last_error", None),
                 "rules": {"max_minute": self.a.max_minute, "max_dog": self.a.max_dog, "side_cap": self.a.side_cap,
                           "flip_cap": self.a.flip_cap, "per_level": self.a.per_level,
-                          "no_flip": bool(getattr(self.a, "no_flip", False))}}
+                          "no_flip": bool(getattr(self.a, "no_flip", False)),
+                          "flip_wait": float(getattr(self.a, "flip_wait", 0) or 0)}}
         tmp = os.path.join(self.a.log_dir, "live.json.tmp")
         with open(tmp, "w") as f: json.dump(live, f)
         os.replace(tmp, os.path.join(self.a.log_dir, "live.json"))

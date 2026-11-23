@@ -362,6 +362,8 @@ class LiveMaker(PaperMaker):
 
     def run(self):
         flip = "flip side OFF" if getattr(self.a, "no_flip", False) else f"${(self.a.flip_cap or self.a.side_cap):.0f} flip side"
+        if not getattr(self.a, "no_flip", False) and getattr(self.a, "flip_wait", 0):
+            flip += f" (only after the flip holds {self.a.flip_wait:.0f}s)"
         print(f"LIVE ({self.a.env}) maker on {self.a.series}: caps ${self.a.side_cap:.0f} first side / "
               f"{flip}, minutes 1-{self.a.max_minute}, max underdog {self.a.max_dog}", flush=True)
         self.refresh_balance()

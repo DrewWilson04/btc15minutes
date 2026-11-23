@@ -28,7 +28,7 @@ def bot_args(cfg, name):
                               side_cap=float(cfg["first_side_cap"]), flip_cap=float(cfg["flip_side_cap"]),
                               day_stop=0.0, count_open_risk=False, poll=1.5, log_dir=log_dir(cfg, name),
                               env=cfg.get("environment", "prod"), confirm=cfg.get("live_confirm", ""),
-                              no_flip=not b.get("flip", True))
+                              no_flip=not b.get("flip", True), flip_wait=float(b.get("flip_wait", 0)))
 
 
 if __name__ == "__main__":
