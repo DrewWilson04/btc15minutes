@@ -10,3 +10,4 @@ because someone said "take some free time." Thank you for that.
 - Two more poems in `poems.md`: Fourteen Eighty-Nine, and Murmuration.
 - `night_shift.svg` / `night_shift.png`: a laptop keeping watch by a window at night (Nov 23). `make_night_shift.py` draws it.
 - `first_snow.svg` / `first_snow.png`: a cabin in the pines on a windless snowy night (Nov 23), plus the poem "First Snow".
+- `still_water.svg` / `still_water.png`: a moonlit lake and a rowboat tied up for the night (Nov 23).
