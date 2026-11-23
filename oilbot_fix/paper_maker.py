@@ -14,6 +14,19 @@ No order is ever sent: only public, unauthenticated GET endpoints are used.
 """
 import argparse, datetime as dt, json, math, os, sys, time
 import httpx
+try:
+    from zoneinfo import ZoneInfo
+    NY = ZoneInfo("America/New_York")
+except Exception:                                    # no tz database: fall back to US Eastern standard time
+    NY = dt.timezone(dt.timedelta(hours=-5))
+
+
+def parse_hours(h):
+    """'11-18' -> (11, 18): trade rounds that START from 11:00 up to 17:59 ET. Empty/None -> None (all hours)."""
+    if not h:
+        return None
+    a, b = str(h).split("-")
+    return int(a), int(b)
 
 API = "https://api.elections.kalshi.com/trade-api/v2"
 UTC = dt.timezone.utc
@@ -138,8 +151,18 @@ class PaperMaker:
             return 0.0                                  # flip turned off: never buy the other side
         return self.a.side_cap if first in (None, side) or not self.a.flip_cap else self.a.flip_cap
 
+    def in_hours(self):
+        hrs = parse_hours(getattr(self.a, "hours", None))
+        if not hrs or not self.market:
+            return True
+        h = ts(self.market["open_time"]).astimezone(NY).hour       # by when the round STARTED (as in the backtest)
+        a, b = hrs
+        return a <= h < b if a < b else (h >= a or h < b)          # also allows windows that wrap past midnight
+
     def allowed(self, side=None):
         self.roll_day()
+        if not self.in_hours():
+            return False
         if self.a.day_stop and self.day_pnl - (self.open_risk() if self.a.count_open_risk else 0) <= -self.a.day_stop:
             return False
         if self.a.window_cap and self.win["at_risk"] >= self.a.window_cap:
@@ -185,7 +208,8 @@ class PaperMaker:
                 "rules": {"max_minute": self.a.max_minute, "max_dog": self.a.max_dog, "side_cap": self.a.side_cap,
                           "flip_cap": self.a.flip_cap, "per_level": self.a.per_level,
                           "no_flip": bool(getattr(self.a, "no_flip", False)),
-                          "flip_wait": float(getattr(self.a, "flip_wait", 0) or 0)}}
+                          "flip_wait": float(getattr(self.a, "flip_wait", 0) or 0),
+                          "hours": getattr(self.a, "hours", None) or None, "in_hours": self.in_hours()}}
         tmp = os.path.join(self.a.log_dir, "live.json.tmp")
         with open(tmp, "w") as f: json.dump(live, f)
         os.replace(tmp, os.path.join(self.a.log_dir, "live.json"))

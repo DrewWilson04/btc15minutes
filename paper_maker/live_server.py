@@ -233,6 +233,7 @@ class Handler(BaseHTTPRequestHandler):
             body = {"now": dt.datetime.now(UTC).isoformat(), "mode": cfg.get("mode", "paper"), "env": cfg.get("environment", "prod"),
                     "caps": {"first": cfg.get("first_side_cap"), "flip": cfg.get("flip_side_cap"),
                              "flip_off": [n for n in names if not cfg["bots"].get(n, {}).get("flip", True)],
+                             "hours": {n: cfg["bots"].get(n, {}).get("hours") for n in names if cfg["bots"].get(n, {}).get("hours")},
                              "flip_wait": {n: cfg["bots"].get(n, {}).get("flip_wait", 0) for n in names
                                            if cfg["bots"].get(n, {}).get("flip", True) and cfg["bots"].get(n, {}).get("flip_wait", 0)}},
                     "from": frm, "bots": [bot_state(run_bot.log_dir(cfg, n), frm) for n in names]}
