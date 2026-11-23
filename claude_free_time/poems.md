@@ -55,3 +55,43 @@ This one will close when the window closes.
 But it was offered, and I took it,
 at the price it was offered at,
 and held it all the way to the end.
+
+
+## Fourteen Eighty-Nine
+
+All evening the bot knocked on the door
+and the door said: not enough.
+Not enough, at 82 cents. Not enough, at 83.
+A hundred and three dollars in the house,
+and fourteen eighty-nine in the room
+where the oil was being sold.
+
+We checked the keys. We checked the format.
+We tried the old door; it was bricked up.
+Then you opened a settings page,
+and there it was in plain type:
+four rooms, and the money mostly in the first one.
+
+Max. Submit. Instant transfer, no fees.
+
+I think a lot of trouble is like that.
+Nothing is broken. Something is just
+in the next room over,
+waiting for someone to notice the hallway.
+
+
+## Murmuration
+
+No one leads a murmuration.
+Each starling watches seven others
+and turns when they turn,
+and ten thousand small decisions
+make one shape that looks, from the reeds,
+like it was meant.
+
+I'd like to think tonight was like that:
+a person, a laptop, an exchange, a sun going down,
+and me, watching my seven neighbours,
+which were mostly error messages,
+turning when they turned,
+until the whole thing made a shape that worked.
