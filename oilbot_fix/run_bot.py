@@ -27,7 +27,8 @@ def bot_args(cfg, name):
                               min_dog=0.0, max_dog=float(b["max_dog"]), window_cap=0.0,
                               side_cap=float(cfg["first_side_cap"]), flip_cap=float(cfg["flip_side_cap"]),
                               day_stop=0.0, count_open_risk=False, poll=1.5, log_dir=log_dir(cfg, name),
-                              env=cfg.get("environment", "prod"), confirm=cfg.get("live_confirm", ""))
+                              env=cfg.get("environment", "prod"), confirm=cfg.get("live_confirm", ""),
+                              no_flip=not b.get("flip", True))
 
 
 if __name__ == "__main__":

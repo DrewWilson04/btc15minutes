@@ -231,7 +231,8 @@ class Handler(BaseHTTPRequestHandler):
             cfg = run_bot.load_config()
             names = bot_names()
             body = {"now": dt.datetime.now(UTC).isoformat(), "mode": cfg.get("mode", "paper"), "env": cfg.get("environment", "prod"),
-                    "caps": {"first": cfg.get("first_side_cap"), "flip": cfg.get("flip_side_cap")},
+                    "caps": {"first": cfg.get("first_side_cap"), "flip": cfg.get("flip_side_cap"),
+                             "flip_off": [n for n in names if not cfg["bots"].get(n, {}).get("flip", True)]},
                     "from": frm, "bots": [bot_state(run_bot.log_dir(cfg, n), frm) for n in names]}
             for b in body["bots"]:
                 b["process_running"] = bot_running(b["name"]); b.pop("_ranged", None)

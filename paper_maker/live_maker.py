@@ -361,8 +361,9 @@ class LiveMaker(PaperMaker):
         os.replace(tmp, p)
 
     def run(self):
+        flip = "flip side OFF" if getattr(self.a, "no_flip", False) else f"${(self.a.flip_cap or self.a.side_cap):.0f} flip side"
         print(f"LIVE ({self.a.env}) maker on {self.a.series}: caps ${self.a.side_cap:.0f} first side / "
-              f"${(self.a.flip_cap or self.a.side_cap):.0f} flip side, minutes 1-{self.a.max_minute}, max underdog {self.a.max_dog}", flush=True)
+              f"{flip}, minutes 1-{self.a.max_minute}, max underdog {self.a.max_dog}", flush=True)
         self.refresh_balance()
         print(f"[{now():%H:%M:%S}] account balance ${self.balance} (oil shard {self.shard}: ${self.shard_balance})", flush=True)
         if self.shard_balance is not None and self.shard_balance < self.a.side_cap:

@@ -134,6 +134,8 @@ class PaperMaker:
 
     def side_limit(self, side):
         first = self.win["first_side"]
+        if first not in (None, side) and getattr(self.a, "no_flip", False):
+            return 0.0                                  # flip turned off: never buy the other side
         return self.a.side_cap if first in (None, side) or not self.a.flip_cap else self.a.flip_cap
 
     def allowed(self, side=None):
@@ -142,7 +144,7 @@ class PaperMaker:
             return False
         if self.a.window_cap and self.win["at_risk"] >= self.a.window_cap:
             return False
-        if self.a.side_cap and side and self.win["side_risk"][side] >= self.side_limit(side):
+        if side and (self.a.side_cap or getattr(self.a, "no_flip", False)) and self.win["side_risk"][side] >= self.side_limit(side):
             return False
         return True
 
@@ -171,7 +173,8 @@ class PaperMaker:
                 "mode": "paper", "pid": os.getpid(), "last_ok": getattr(self, "last_ok", None),
                 "last_error": getattr(self, "last_error", None),
                 "rules": {"max_minute": self.a.max_minute, "max_dog": self.a.max_dog, "side_cap": self.a.side_cap,
-                          "flip_cap": self.a.flip_cap, "per_level": self.a.per_level}}
+                          "flip_cap": self.a.flip_cap, "per_level": self.a.per_level,
+                          "no_flip": bool(getattr(self.a, "no_flip", False))}}
         tmp = os.path.join(self.a.log_dir, "live.json.tmp")
         with open(tmp, "w") as f: json.dump(live, f)
         os.replace(tmp, os.path.join(self.a.log_dir, "live.json"))

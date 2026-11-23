@@ -223,7 +223,7 @@ function botPanel(b, now) {
     const w = live.window || { side_risk: { yes: 0, no: 0 } }, first = w.first_side;
     const caps = $("div", "caps");
     for (const side of ["yes", "no"]) {
-      const used = (w.side_risk || {})[side] || 0, cap = !first || first === side ? live.rules.side_cap : (live.rules.flip_cap || live.rules.side_cap);
+      const used = (w.side_risk || {})[side] || 0, cap = !first || first === side ? live.rules.side_cap : (live.rules.no_flip ? 0 : (live.rules.flip_cap || live.rules.side_cap));
       caps.append($("span", "label", `${side.toUpperCase()} put in` + (first ? (first === side ? " (first side)" : " (flip side)") : "")));
       const bar = $("div", "cap"); const f = $("div"); f.style.width = cap ? Math.min(100, (used / cap) * 100) + "%" : "0"; f.style.background = side === "yes" ? "var(--accent)" : "var(--warn)"; bar.append(f);
       caps.append(bar, $("span", "val", `${usd(used)}${cap ? " / $" + cap : ""}`));
@@ -568,7 +568,9 @@ async function tick() {
     const box = document.getElementById("bots");
     box.replaceChildren(...d.bots.map((b) => botPanel(b, d.now)));
     const mode = document.getElementById("mode");
-    const caps = `Caps: $${d.caps.first} first side · $${d.caps.flip} flip side per round`;
+    const off = d.caps.flip_off || [], allOff = off.length && off.length === d.bots.length;
+    const caps = `Caps: $${d.caps.first} first side · ` + (allOff ? "flip side OFF" : `$${d.caps.flip} flip side per round`) +
+      (off.length && !allOff ? ` (flip OFF for ${off.map((n) => NAMES[n] || n).join(", ")})` : "");
     if (d.mode === "live" && d.env === "demo") { mode.className = "mode demo"; mode.textContent = "LIVE ON KALSHI DEMO (fake money) · " + caps; }
     else if (d.mode === "live") { mode.className = "mode live"; mode.textContent = "LIVE · REAL MONEY · real orders on Kalshi · " + caps; }
     else { mode.className = "mode paper"; mode.textContent = "PAPER TRADING · simulated fills, no real money · " + caps; }
